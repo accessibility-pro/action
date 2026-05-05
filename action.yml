@@ -1,0 +1,83 @@
+name: 'Accessibility Pro Scan'
+description: 'Run a WCAG 2.2 AA scan on every PR. Posts an impact-ranked comment with a deep link to sandbox-validated Copy-as-PR fixes.'
+author: 'Accessibility Pro'
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  url:
+    description: 'URL to scan. Use secrets.STAGING_URL for auth-gated sites.'
+    required: true
+  wcag-level:
+    description: 'WCAG conformance level: A, AA, or AAA.'
+    required: false
+    default: 'AA'
+  fail-on:
+    description: 'Fail the action on first: error (critical+high), warning (medium+), or none.'
+    required: false
+    default: 'error'
+  accessibility-pro-token:
+    description: 'Optional API token. Unlocks Team-quota + Copy-as-PR on PR comments. Get one at https://www.accessibilitypro.app/pricing.'
+    required: false
+    default: ''
+  comment-on-pr:
+    description: 'Post results as a PR comment when running on pull_request events.'
+    required: false
+    default: 'true'
+  backend-url:
+    description: 'Override for the Accessibility Pro backend. Useful for self-hosted.'
+    required: false
+    default: 'https://access-pro-ai-production.up.railway.app'
+  report-domain:
+    description: 'Override for the hosted-report domain. Change if you self-host the frontend.'
+    required: false
+    default: 'https://www.accessibilitypro.app'
+
+outputs:
+  scan-id:
+    description: 'The scan id, useful for deep-linking to the hosted report.'
+    value: ${{ steps.scan.outputs.scan-id }}
+  violations-critical:
+    description: 'Count of critical-severity violations.'
+    value: ${{ steps.scan.outputs.violations-critical }}
+  violations-high:
+    description: 'Count of high-severity violations.'
+    value: ${{ steps.scan.outputs.violations-high }}
+  score:
+    description: 'Accessibility score (0-100).'
+    value: ${{ steps.scan.outputs.score }}
+  report-url:
+    description: 'Direct link to the hosted report.'
+    value: ${{ steps.scan.outputs.report-url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run scan
+      id: scan
+      shell: bash
+      env:
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_WCAG_LEVEL: ${{ inputs.wcag-level }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_TOKEN: ${{ inputs.accessibility-pro-token }}
+        INPUT_BACKEND_URL: ${{ inputs.backend-url }}
+        INPUT_REPORT_DOMAIN: ${{ inputs.report-domain }}
+      run: node ${{ github.action_path }}/scripts/scan.mjs
+
+    - name: Comment on PR
+      if: ${{ github.event_name == 'pull_request' && inputs.comment-on-pr == 'true' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        INPUT_SCAN_ID: ${{ steps.scan.outputs.scan-id }}
+        INPUT_BACKEND_URL: ${{ inputs.backend-url }}
+        INPUT_REPORT_DOMAIN: ${{ inputs.report-domain }}
+        INPUT_URL: ${{ inputs.url }}
+      run: node ${{ github.action_path }}/scripts/comment.mjs
