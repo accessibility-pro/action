@@ -69,7 +69,7 @@ function renderBody(scan) {
   const score = Math.round(scan.score ?? 0);
 
   const lines = [
-    `## Accessibility Pro — score **${score}/100**`,
+    `## Accessibility Pro · score **${score}/100**`,
     '',
     `**URL:** ${INPUT_URL}`,
     '',
@@ -80,20 +80,20 @@ function renderBody(scan) {
     ...issues.map((i, idx) => {
       const tier = i.legal_risk_tier === 1 ? ' · **Tier-1 legal risk**' : '';
       const conf = i.confidence_bucket ? ` · ${i.confidence_bucket} confidence` : '';
-      return `${idx + 1}. **${i.title}** (${i.severity}${tier}${conf}) — WCAG ${i.wcag}`;
+      return `${idx + 1}. **${i.title}** (${i.severity}${tier}${conf}) · WCAG ${i.wcag}`;
     }),
     '',
     `**[View full report and Copy-as-PR fixes →](${reportUrl}#ai-fixes)**`,
     '',
     '<sub>Every patch emitted from that link is sandbox-validated: applied to ' +
-      'the captured DOM, re-scanned, and only labeled Verified when it resolves ' +
+      'the captured DOM, re-scanned, and only labelled Verified when it resolves ' +
       'the violation with zero regressions.</sub>'
   ];
   return lines.join('\n');
 }
 
 async function postComment(prNumber, body) {
-  // Direct REST call — no shell, no argv interpolation of user-controlled
+  // Direct REST call: no shell, no argv interpolation of user-controlled
   // fields. `GITHUB_REPOSITORY` is set by GitHub itself, but we still
   // validate its shape before splicing it into a URL path.
   if (!/^[\w.-]+\/[\w.-]+$/.test(GITHUB_REPOSITORY || '')) {
@@ -118,6 +118,6 @@ async function postComment(prNumber, body) {
 
 main().catch((err) => {
   console.error(`Comment failed: ${err.stack || err.message}`);
-  // Non-fatal — a failed comment shouldn't break the scan result.
+  // Non-fatal: a failed comment should not break the scan result.
   process.exit(0);
 });

@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * Accessibility Pro GitHub Action — scan script.
+ * Accessibility Pro GitHub Action: scan script.
  *
- * POSTs /api/ci/scan with the target URL + WCAG level, exports the
+ * POSTs /api/ci/scan with the target URL and WCAG level, exports the
  * scan metadata as action outputs, and exits non-zero when the
  * `fail-on` threshold is breached.
  *
  * Environment (provided by action.yml):
  *   INPUT_URL
- *   INPUT_WCAG_LEVEL     — A | AA | AAA
- *   INPUT_FAIL_ON        — error | warning | none
- *   INPUT_TOKEN          — optional; unlocks Team quota + Copy-as-PR
- *   INPUT_BACKEND_URL    — backend base url
- *   INPUT_REPORT_DOMAIN  — hosted-report origin (e.g. accessibilitypro.app)
+ *   INPUT_WCAG_LEVEL     A | AA | AAA
+ *   INPUT_FAIL_ON        error | warning | none
+ *   INPUT_TOKEN          optional; unlocks Team quota and Copy-as-PR
+ *   INPUT_BACKEND_URL    backend base url
+ *   INPUT_REPORT_DOMAIN  hosted-report origin (e.g. accessibilitypro.app)
  */
 
 import { appendFileSync } from 'node:fs';
@@ -46,6 +46,14 @@ async function main() {
   const endpoint = `${BACKEND}/api/ci/scan`;
   const headers = { 'Content-Type': 'application/json' };
   if (INPUT_TOKEN) headers['Authorization'] = `Bearer ${INPUT_TOKEN}`;
+
+  // Free-tier scans are bucketed per repository (see the daily quota
+  // promise in README.md). The backend reads X-GitHub-Repository to
+  // build the rate-limit key; GitHub guarantees `owner/repo` shape
+  // for GITHUB_REPOSITORY when the workflow runs in Actions context.
+  if (process.env.GITHUB_REPOSITORY) {
+    headers['X-GitHub-Repository'] = process.env.GITHUB_REPOSITORY;
+  }
 
   const body = JSON.stringify({
     url: INPUT_URL,

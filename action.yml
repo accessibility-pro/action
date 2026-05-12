@@ -3,7 +3,7 @@ description: 'Run a WCAG 2.2 AA scan on every PR. Posts an impact-ranked comment
 author: 'Accessibility Pro'
 branding:
   icon: 'shield'
-  color: 'purple'
+  color: 'green'
 
 inputs:
   url:
@@ -18,7 +18,7 @@ inputs:
     required: false
     default: 'error'
   accessibility-pro-token:
-    description: 'Optional API token. Unlocks Team-quota + Copy-as-PR on PR comments. Get one at https://www.accessibilitypro.app/pricing.'
+    description: 'Optional API token. Unlocks Team-quota and Copy-as-PR on PR comments. Get one at https://www.accessibilitypro.app/pricing.'
     required: false
     default: ''
   comment-on-pr:
@@ -45,7 +45,7 @@ outputs:
     description: 'Count of high-severity violations.'
     value: ${{ steps.scan.outputs.violations-high }}
   score:
-    description: 'Accessibility score (0-100).'
+    description: 'Accessibility score (0 to 100).'
     value: ${{ steps.scan.outputs.score }}
   report-url:
     description: 'Direct link to the hosted report.'
