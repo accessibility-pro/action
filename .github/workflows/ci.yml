@@ -55,3 +55,50 @@ jobs:
             if (!existsSync(main[1])) throw new Error('runs.main points at ' + main[1] + ', which does not exist');
             console.log('runs.main -> ' + main[1]);
           "
+
+  # Runs the action on itself against the live service. This is the only
+  # check that exercises what a consumer actually gets: the node24
+  # runtime on a real runner, OIDC minting, the long-blocking scan
+  # request, SARIF upload, and the pull-request comment. The unit suite
+  # above mocks all of it.
+  integration:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # post the results comment
+      id-token: write        # bucket free-tier quota by repository
+      security-events: write # upload SARIF to code scanning
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: scan
+        uses: ./
+        with:
+          url: https://www.accessibilitypro.app/
+          # Report only. This job proves the plumbing works; it must not
+          # go red because the marketing site picked up a contrast
+          # regression, which the dogfood workflow already gates on.
+          fail-on: none
+          sarif-file: a11y.sarif
+
+      - name: Outputs are populated
+        run: |
+          echo "passed=${{ steps.scan.outputs.passed }}"
+          echo "score=${{ steps.scan.outputs.score }}"
+          echo "engines=${{ steps.scan.outputs.engines-used }}"
+          echo "report=${{ steps.scan.outputs.report-url }}"
+          test -n "${{ steps.scan.outputs.scan-id }}"     || { echo "scan-id empty"; exit 1; }
+          test -n "${{ steps.scan.outputs.report-url }}"  || { echo "report-url empty"; exit 1; }
+          test -n "${{ steps.scan.outputs.engines-used }}" || { echo "engines-used empty"; exit 1; }
+          test -s a11y.sarif                              || { echo "SARIF not written"; exit 1; }
+          node -e "
+            const s = require('./a11y.sarif');
+            if (s.version !== '2.1.0') throw new Error('bad SARIF version');
+            if (!Array.isArray(s.runs) || s.runs.length !== 1) throw new Error('expected one run');
+            console.log('SARIF ok: ' + s.runs[0].results.length + ' results');
+          "
+
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: a11y.sarif
+          category: accessibility
