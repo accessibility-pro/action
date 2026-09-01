@@ -1,0 +1,57 @@
+# Tests for the action itself.
+#
+# `test/e2e.mjs` stands up a mock backend and a mock GitHub API, then
+# runs `src/main.mjs` as a real child process with an Actions-shaped
+# environment. It checks the things a unit test would miss: the exit
+# code, the values written to $GITHUB_OUTPUT, the job-summary markdown,
+# and the exact comment body posted to the API.
+#
+# There is no build step and no node_modules: the action ships plain
+# ESM and depends on nothing, so what CI runs is byte-for-byte what a
+# consumer's runner executes.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # node20 is the floor an older self-hosted runner may still
+        # provide; node24 is what `runs.using` requests on hosted
+        # runners. Both must pass, or the action is only safe on one.
+        node: ['20', '24']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check every module
+        run: for f in src/*.mjs; do node --check "$f"; done
+      - name: End-to-end
+        run: node test/e2e.mjs
+
+  action-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: action.yml parses and points at a file that exists
+        run: |
+          node -e "
+            const { readFileSync, existsSync } = require('node:fs');
+            const yaml = readFileSync('action.yml', 'utf8');
+            const main = yaml.match(/^\s+main:\s+'(.+)'/m);
+            if (!main) throw new Error('runs.main missing from action.yml');
+            if (!existsSync(main[1])) throw new Error('runs.main points at ' + main[1] + ', which does not exist');
+            console.log('runs.main -> ' + main[1]);
+          "
