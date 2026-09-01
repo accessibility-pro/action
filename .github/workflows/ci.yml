@@ -91,10 +91,12 @@ jobs:
           test -n "${{ steps.scan.outputs.report-url }}"  || { echo "report-url empty"; exit 1; }
           test -n "${{ steps.scan.outputs.engines-used }}" || { echo "engines-used empty"; exit 1; }
           test -s a11y.sarif                              || { echo "SARIF not written"; exit 1; }
+          # require() would treat a .sarif extension as JavaScript.
           node -e "
-            const s = require('./a11y.sarif');
+            const s = JSON.parse(require('node:fs').readFileSync('a11y.sarif', 'utf8'));
             if (s.version !== '2.1.0') throw new Error('bad SARIF version');
             if (!Array.isArray(s.runs) || s.runs.length !== 1) throw new Error('expected one run');
+            if (s.runs[0].tool.driver.name !== 'Accessibility Pro') throw new Error('bad driver name');
             console.log('SARIF ok: ' + s.runs[0].results.length + ' results');
           "
 
