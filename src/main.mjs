@@ -13,11 +13,17 @@ import { dirname, resolve } from 'node:path';
 
 import * as core from './core.mjs';
 import { FAIL_ON_CHOICES, mintOidcToken, resolveGate, runScan } from './api.mjs';
-import { renderComment, renderSummary, summarise, warningKind } from './render.mjs';
+import {
+  quotaLine,
+  renderComment,
+  renderSummary,
+  summarise,
+  warningKind,
+} from './render.mjs';
 import { toSarif } from './sarif.mjs';
 import { pullRequestNumber, readEvent, repository, upsertComment } from './github.mjs';
 
-const ACTION_VERSION = '2.0.0';
+const ACTION_VERSION = '2.1.0';
 const WCAG_LEVELS = ['A', 'AA', 'AAA'];
 const COMMENT_MODES = ['sticky', 'new', 'off'];
 
@@ -278,6 +284,18 @@ async function main() {
     'report-url',
     totals.worst.id ? `${config.reportDomain}/report/${totals.worst.id}` : ''
   );
+  // Plan state, when the caller authenticated. Left empty for anonymous
+  // runs rather than zero: there is no account to report against, and a
+  // 0 would read as "no allowance left".
+  const quota = totals.stats.find((s) => s.quota)?.quota || null;
+  core.setOutput('plan-tier', quota?.tier ?? '');
+  core.setOutput(
+    'ci-scans-remaining',
+    quota && !quota.unlimited && quota.ci_scans_remaining != null
+      ? String(quota.ci_scans_remaining)
+      : ''
+  );
+  if (quota) core.info(quotaLine(quota));
 
   core.appendSummary(
     renderSummary(results, {

@@ -139,6 +139,10 @@ outputs:
     description: 'Scan warnings that make the result unrepresentative (0 when the scan was clean).'
   engines-used:
     description: 'Comma-separated engines that actually ran.'
+  plan-tier:
+    description: 'Plan the scan was billed to. Empty when running anonymously on the free tier.'
+  ci-scans-remaining:
+    description: 'CI scans left in this month allowance. Empty when anonymous or unlimited.'
   sarif-file:
     description: 'Absolute path of the written SARIF file, when `sarif-file` was set.'
   results-file:

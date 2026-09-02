@@ -59,6 +59,11 @@ const backend = createServer((req, res) => {
         res.end(JSON.stringify({ detail: 'URL blocked: host is not reachable' }));
         return;
       }
+      if (scenario.status === 402) {
+        res.writeHead(402, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ detail: 'Monthly CI scan allowance exhausted (1000/1000 on the starter plan). It resets at your next billing cycle. Upgrade at https://www.accessibilitypro.app/pricing' }));
+        return;
+      }
       if (scenario.status === 429) {
         res.writeHead(429, { 'retry-after': '3600', 'content-type': 'application/json' });
         res.end(JSON.stringify({ error: 'Rate limit exceeded', retry_after: 3600 }));
@@ -506,6 +511,58 @@ scenario = { failFor: 'broken', response: (u) => scanResult(u) };
 r = await run({}, { inputs: { url: 'https://broken.example.com' } });
 check('exit 1', r.code === 1);
 check('no empty scan summary written', !r.summary.includes('| Critical |'), r.summary);
+
+// --------------------------------------------------------------- 23
+console.log('\n[23] Authenticated run surfaces the plan allowance');
+scenario = {
+  response: (u) => ({
+    ...scanResult(u),
+    quota: {
+      tier: 'professional',
+      ci_scans_used: 120,
+      ci_scans_limit: 5000,
+      ci_scans_remaining: 4880,
+      unlimited: false,
+    },
+  }),
+};
+captured.comments = [];
+r = await run({ 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'tok_abc' }, { inputs: { url: 'https://example.com' } });
+check('exit 0', r.code === 0, r.stderr);
+check('plan-tier output', r.outputs['plan-tier'] === 'professional', r.outputs['plan-tier']);
+check('remaining output', r.outputs['ci-scans-remaining'] === '4880', r.outputs['ci-scans-remaining']);
+check('bearer token sent', captured.scanBodies.at(-1).headers.authorization === 'Bearer tok_abc');
+check('comment shows the plan', (captured.comments[0]?.body || '').includes('120 of 5000 CI scans used this month'), (captured.comments[0]?.body || '').slice(-300));
+check('no warning below 90%', !(captured.comments[0]?.body || '').includes('CI scans used this month ⚠️'));
+
+// --------------------------------------------------------------- 24
+console.log('\n[24] Near the allowance, the comment warns');
+scenario = {
+  response: (u) => ({
+    ...scanResult(u),
+    quota: { tier: 'starter', ci_scans_used: 960, ci_scans_limit: 1000, ci_scans_remaining: 40, unlimited: false },
+  }),
+};
+captured.comments = [];
+r = await run({ 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'tok_abc' }, { inputs: { url: 'https://example.com' } });
+check('warning rendered at 96%', (captured.comments[0]?.body || '').includes('⚠️'), (captured.comments[0]?.body || '').slice(-300));
+
+// --------------------------------------------------------------- 25
+console.log('\n[25] Anonymous runs claim no allowance at all');
+scenario = { response: (u) => scanResult(u) };
+captured.comments = [];
+r = await run({}, { inputs: { url: 'https://example.com' } });
+check('plan-tier empty', r.outputs['plan-tier'] === '', JSON.stringify(r.outputs['plan-tier']));
+check('remaining empty, not 0', r.outputs['ci-scans-remaining'] === '', JSON.stringify(r.outputs['ci-scans-remaining']));
+check('no plan line in comment', !(captured.comments[0]?.body || '').includes('CI scans used'));
+
+// --------------------------------------------------------------- 26
+console.log('\n[26] Exhausted allowance is a distinct, actionable failure');
+scenario = { status: 402, response: (u) => scanResult(u) };
+r = await run({ 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'tok_abc' }, { inputs: { url: 'https://example.com' } });
+check('exit 1', r.code === 1);
+check('quotes the backend message', r.stdout.includes('Monthly CI scan allowance exhausted'), r.stdout.slice(-400));
+check('not confused with a rate limit', !r.stdout.includes('resets in about'));
 
 backend.close();
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

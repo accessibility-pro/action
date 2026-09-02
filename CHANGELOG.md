@@ -6,6 +6,29 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.1.0] · 2026-09-02
+
+### Added
+- A token now buys something concrete. Authenticated scans are
+  attributed to your account, appear in your dashboard next to your
+  interactive scans, and draw on your plan's **CI allowance** - a
+  budget separate from your monthly interactive scans (Solo 1,000,
+  Team 5,000, Business 20,000 per month).
+- The remaining allowance is printed on every run and shown in the PR
+  comment, with a warning at 90%, so a team sees it coming rather than
+  meeting it on the build that fails.
+- New outputs: `plan-tier` and `ci-scans-remaining`. Both are empty for
+  anonymous runs rather than zero, because there is no account to
+  report against and a zero would read as "nothing left".
+- An exhausted allowance answers HTTP 402 with the plan, the counts and
+  the reset, kept distinct from the free tier's 429 rate limit.
+
+### Fixed
+- The README claimed a token made scans "count against your plan quota"
+  and generated Copy-as-PR fixes. Neither was true: the endpoint read no
+  identity at all, and Copy-as-PR is a separate authenticated route in
+  the hosted report. Both statements are now accurate.
+
 ## [2.0.0] · 2026-09-01
 
 A rebuild that closes four months of drift between the action and the

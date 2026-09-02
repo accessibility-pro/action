@@ -250,6 +250,11 @@ export async function runScan({
       { status: 400 }
     );
   }
+  if (res.status === 402) {
+    // The plan's CI allowance is spent. Distinct from 429, which is the
+    // free tier's rate limit: this one does not clear in an hour.
+    throw new HttpError(safeDetail(res.body), { status: 402 });
+  }
   if (res.status === 401 || res.status === 403) {
     throw new HttpError(
       `The supplied accessibility-pro-token was rejected (HTTP ${res.status}). ` +

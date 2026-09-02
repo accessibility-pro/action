@@ -154,7 +154,27 @@ export function summarise(result) {
     truncation: result?.truncation || null,
     failReason: typeof result?.summary_text === 'string' ? result.summary_text : '',
     durationMs: Number(result?.scan_duration_ms || 0),
+    quota: result?.quota || null,
   };
+}
+
+/**
+ * One line of plan usage, when the caller authenticated.
+ *
+ * Anonymous scans get nothing here: the backend has no account to
+ * report against, and inventing a number would be worse than silence.
+ * Warned at 90% so a team sees it on a PR comment rather than on the
+ * build that finally 402s.
+ */
+export function quotaLine(quota) {
+  if (!quota || !quota.tier) return '';
+  if (quota.unlimited) return `Plan: ${quota.tier} (unlimited CI scans)`;
+  const used = Number(quota.ci_scans_used ?? 0);
+  const limit = Number(quota.ci_scans_limit ?? 0);
+  if (!limit) return `Plan: ${quota.tier}`;
+  const pct = used / limit;
+  const warn = pct >= 0.9 ? ' ⚠️' : '';
+  return `Plan: ${quota.tier} · ${used} of ${limit} CI scans used this month${warn}`;
 }
 
 /** One line describing the element a finding is about. */
@@ -363,6 +383,9 @@ export function renderScanSection(
       stats.totalIssues > 0 ? ` · [Copy-as-PR fixes](${reportUrl}#ai-fixes)` : '';
     lines.push(`**[Open the full report](${reportUrl})**${fixes}`, '');
   }
+
+  const plan = quotaLine(stats.quota);
+  if (plan) lines.push(`<sub>${md(plan)}</sub>`, '');
 
   return lines.join('\n');
 }

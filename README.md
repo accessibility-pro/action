@@ -176,7 +176,7 @@ the job summary and the workflow's own failure notification.
 | `annotations` | `true` | Emit build-failing findings as workflow annotations. |
 | `sarif-file` | `''` | Path to write a SARIF 2.1.0 report to. |
 | `results-file` | `''` | Path to write the raw scan payload (JSON) to. |
-| `accessibility-pro-token` | `''` | API token. Scans count against your plan quota, and Copy-as-PR fixes are generated. |
+| `accessibility-pro-token` | `''` | API token. Scans are attributed to your account, appear in your dashboard, and draw on your plan's CI allowance instead of the free tier. |
 | `github-token` | `${{ github.token }}` | Token used to post the comment. |
 | `timeout-minutes` | `15` | Per-attempt budget for one scan request (1 to 60). |
 | `retries` | `1` | Retries for transient backend or network failures (0 to 3). |
@@ -265,9 +265,30 @@ Add `permissions: id-token: write` so the quota is attributed to your
 repository through a signed GitHub OIDC token rather than to a shared
 runner IP.
 
-With `accessibility-pro-token`, scans count against your plan quota and
-the report generates validated Copy-as-PR fixes. See
-[accessibilitypro.app/pricing](https://www.accessibilitypro.app/pricing).
+## With a token
+
+Supply `accessibility-pro-token` and scans are attributed to your
+account rather than run anonymously. That means they appear in your
+dashboard and history next to your interactive scans, and they draw on
+your plan's **CI allowance**, which is a separate budget from your
+monthly interactive scans:
+
+| Plan | CI scans / month |
+|---|---|
+| Free (anonymous) | 10 per day per repository |
+| Solo | 1,000 |
+| Team | 5,000 |
+| Business | 20,000 |
+
+CI is metered separately because it is a different workload: a CI scan
+is a single page, where an interactive scan crawls your site and pays
+for AI enrichment. Charging one against the other would have made a
+paid plan worth fewer CI scans than the free tier.
+
+The action prints the remaining allowance on each run and warns at 90%.
+Copy-as-PR fixes are generated in the hosted report and need you signed
+in there; the token does not carry into that surface.
+See [accessibilitypro.app/pricing](https://www.accessibilitypro.app/pricing).
 
 ## Why this is different
 
