@@ -118,7 +118,12 @@ function truncate(value, limit) {
 }
 
 function severityCounts(result) {
-  const counts = result?.summary?.severity_counts || {};
+  // Prefer the gate's own numbers: `violations` excludes the
+  // framework-managed findings the backend skipped when it evaluated
+  // the thresholds, while `summary.severity_counts` counts every
+  // headline row. The comment used to show more violations than the
+  // verdict it sat next to. Older backends only send the summary.
+  const counts = result?.violations || result?.summary?.severity_counts || {};
   return {
     critical: Number(counts.critical || 0),
     high: Number(counts.high || 0),
@@ -378,9 +383,16 @@ export function renderScanSection(
 
   if (reportUrl) {
     // No violations means nothing to patch; offering "Copy-as-PR fixes"
-    // on a clean scan sends the reader to an empty tab.
+    // on a clean scan sends the reader to an empty tab. And an
+    // unattributed scan (no accessibility-pro-token) belongs to no
+    // account, so nobody can ever generate fixes for it: `quota` is only
+    // present when the backend saw a verified token.
     const fixes =
-      stats.totalIssues > 0 ? ` · [Copy-as-PR fixes](${reportUrl}#ai-fixes)` : '';
+      stats.totalIssues > 0 && stats.quota
+        ? ` · [Copy-as-PR fixes](${reportUrl}#ai-fixes)`
+        : stats.totalIssues > 0
+          ? ' · Copy-as-PR fixes need an `accessibility-pro-token` so the scan is attributed to your account'
+          : '';
     lines.push(`**[Open the full report](${reportUrl})**${fixes}`, '');
   }
 
@@ -425,10 +437,11 @@ export function renderComment(results, { reportDomain, topIssues, failed, contex
       })
     ),
     '---',
-    '<sub>Findings are ranked by measured impact, not engine order. Every ' +
-      'Copy-as-PR diff is applied to the captured DOM and re-scanned before ' +
-      'it is offered; when no safe patch exists you get a snippet marked ' +
-      'for manual review instead of an unverified diff.</sub>',
+    '<sub>Findings are ranked by measured impact, not engine order. On scans ' +
+      'attributed to an account, every Copy-as-PR diff is applied to the ' +
+      'captured DOM and re-scanned before it is offered; when no safe patch ' +
+      'exists you get a snippet marked for manual review instead of an ' +
+      'unverified diff.</sub>',
   ];
 
   const body = parts.join('\n');

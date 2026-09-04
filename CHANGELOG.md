@@ -6,6 +6,42 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.1.1] · 2026-09-05
+
+A correctness pass over what the run reports. No input or output
+changes, and the build verdict is untouched: the scanner still owns it.
+
+### Fixed
+- **Annotations followed a hard-coded critical/high list**, so a run
+  configured with `fail-on: wcag` failed the build with an empty
+  annotations panel: Level A findings that gate are frequently medium.
+  The annotated set is now whatever this run's gate can fail, read from
+  the gate itself, and framework-managed findings are never annotated
+  because they cannot fail the build they would sit beside.
+- **The comment's counts could exceed the verdict beside them.** They
+  came from `summary.severity_counts`, which counts every headline row,
+  while the gate is evaluated on `violations`, which excludes the
+  framework-managed findings the backend deliberately skips. The comment
+  now prefers the gate's own numbers and falls back to the summary for
+  older backends.
+- **Copy-as-PR was offered to runs that can never use it.** Fixes are
+  generated for scans attributed to an account; an anonymous scan has no
+  account that could open the tab. The link now appears only on an
+  attributed scan, and an anonymous one is told what to add instead of
+  being sent to a tab that will not serve it.
+- **The free-tier permissions note overstated the risk.** Without
+  `id-token: write`, quota is bucketed on the repository name the
+  workflow reports, which nothing verifies; it is not shared across
+  every repository behind a runner IP. Adding the permission makes the
+  bucket provable rather than merely private.
+
+### Documentation
+- `plan-tier` and `ci-scans-remaining`, added in 2.1.0, are in the
+  outputs table.
+- The `accessibility-pro-token` description says what a token actually
+  buys: attribution, which is what lets you open the report signed in
+  and generate Copy-as-PR fixes.
+
 ## [2.1.0] · 2026-09-02
 
 ### Added

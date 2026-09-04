@@ -87,7 +87,8 @@ export function resolveGate({ failOn, thresholdsJson }) {
     parsed = JSON.parse(thresholdsJson);
   } catch (err) {
     throw new Error(
-      `Input 'thresholds' must be a JSON object like {"critical": 0, "high": 3}. ${err.message}`
+      `Input 'thresholds' must be a JSON object like {"critical": 0, "high": 3}. ${err.message}`,
+      { cause: err }
     );
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {

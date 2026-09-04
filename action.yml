@@ -83,7 +83,8 @@ inputs:
   accessibility-pro-token:
     description: |
       Optional API token. Scans count against your plan quota instead of
-      the free tier, and Copy-as-PR fixes are generated for the report.
+      the free tier and are attributed to your account, which is what
+      lets you open the report signed in and generate Copy-as-PR fixes.
       Get one at https://www.accessibilitypro.app/pricing.
     required: false
     default: ''

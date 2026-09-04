@@ -12,7 +12,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 import * as core from './core.mjs';
-import { FAIL_ON_CHOICES, mintOidcToken, resolveGate, runScan } from './api.mjs';
+import { mintOidcToken, resolveGate, runScan } from './api.mjs';
 import {
   quotaLine,
   renderComment,
@@ -140,17 +140,29 @@ function writeJsonFile(path, data) {
  * reviewer skimming annotations wants the three things that broke the
  * gate, not a hundred advisory notes.
  */
-function emitAnnotations(results, { failed, limit = 10 }) {
+function emitAnnotations(results, { failed, gate, limit = 10 }) {
   // A red annotation on a green run makes people hunt for a failure
   // that is not there, so the level tracks the build verdict rather
   // than the finding's severity alone.
   const annotate = failed ? core.error : core.warning;
+  // Annotate the findings that CAN fail this run's gate, whatever it
+  // is. The old hard-coded critical/high list left the panel empty for
+  // `fail-on: wcag` (medium Level A findings fail the build) and for
+  // custom thresholds on medium/low.
+  const thresholds = gate?.thresholds || { critical: 0, high: 0 };
+  const wcagGated = Boolean(gate?.fail_on_wcag_a || gate?.fail_on_wcag_aa);
+  const gates = (issue, severity) =>
+    (thresholds[severity] !== undefined && thresholds[severity] < 1_000_000) ||
+    (wcagGated && /^\d+\.\d+\.\d+$/.test(String(issue.wcag || '')));
   let emitted = 0;
   for (const result of results) {
     for (const issue of result.issues || []) {
       if (emitted >= limit) return;
       const severity = String(issue.severity || '').toLowerCase();
-      if (severity !== 'critical' && severity !== 'high') continue;
+      // Framework-managed findings never gate; annotating them would
+      // contradict the verdict beside them.
+      if (issue.framework_managed) continue;
+      if (!gates(issue, severity)) continue;
       const where = issue.location || (issue.occurrence_selectors || [])[0] || result.url;
       annotate(`${issue.title || 'Accessibility violation'} at ${where}`, {
         title: `WCAG ${issue.wcag || '?'} (${severity}) on ${result.url}`,
@@ -193,9 +205,9 @@ async function main() {
   const oidcToken = await mintOidcToken(config.oidcAudience);
   if (!oidcToken && !config.token) {
     core.info(
-      'Running on the free tier with IP-bucketed quota. Add `permissions: ' +
-        '{ id-token: write }` so quota is counted against this repository ' +
-        'rather than shared with every repo behind the same runner IP.'
+      'Running on the free tier. Quota is bucketed on the repository name ' +
+        'this workflow reports, which is not verified; add `permissions: ' +
+        '{ id-token: write }` so the bucket is proven by a GitHub OIDC token.'
     );
   }
 
@@ -315,7 +327,7 @@ async function main() {
 
   const failed = !totals.passed || unrepresentative || unscanned.length > 0;
 
-  if (config.annotations) emitAnnotations(results, { failed });
+  if (config.annotations) emitAnnotations(results, { failed, gate: config.gate });
 
   const event = readEvent();
   const prNumber = pullRequestNumber(event);
@@ -377,10 +389,16 @@ async function main() {
       .filter((s) => !s.passed)
       .map((s) => `${s.url}: ${s.failReason.replace(/^FAILED:\s*/, '') || 'gate failed'}`)
       .join('; ');
+    // Fixes exist only for attributed scans (a verified token puts
+    // `quota` on the stats); an anonymous scan's report has no account
+    // that could ever open the AI Fixes tab.
+    const attributed = totals.stats.some((s) => s.quota);
     core.setFailed(
       `Accessibility gate failed. ${reasons}. ` +
         (totals.worst.id
-          ? `Copy-as-PR fixes: ${config.reportDomain}/report/${totals.worst.id}#ai-fixes`
+          ? attributed
+            ? `Copy-as-PR fixes: ${config.reportDomain}/report/${totals.worst.id}#ai-fixes`
+            : `Report: ${config.reportDomain}/report/${totals.worst.id} (add an accessibility-pro-token to get Copy-as-PR fixes)`
           : '')
     );
     return;

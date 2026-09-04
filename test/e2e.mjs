@@ -244,7 +244,7 @@ check('legacy repo header sent', captured.scanBodies.at(-1).headers['x-github-re
 // ---------------------------------------------------------------- 3
 console.log('\n[3] fail-on: wcag maps to the criterion gate');
 scenario = { response: (u) => scanResult(u) };
-r = await run({ 'INPUT_FAIL-ON': 'wcag' }, { inputs: { url: 'https://example.com' } });
+await run({ 'INPUT_FAIL-ON': 'wcag' }, { inputs: { url: 'https://example.com' } });
 const wcagPayload = captured.scanBodies.at(-1).payload;
 check('wcag A gate on', wcagPayload.fail_on_wcag_a === true);
 check('wcag AA gate on', wcagPayload.fail_on_wcag_aa === true);
@@ -404,7 +404,7 @@ console.log('\n[13] comment: off and legacy comment-on-pr: false');
 captured.comments = [];
 captured.patches = [];
 scenario = { response: (u) => scanResult(u) };
-r = await run({ INPUT_COMMENT: 'off' }, { inputs: { url: 'https://example.com' } });
+await run({ INPUT_COMMENT: 'off' }, { inputs: { url: 'https://example.com' } });
 check('no comment calls', captured.comments.length === 0 && captured.patches.length === 0);
 r = await run({ 'INPUT_COMMENT-ON-PR': 'false' }, { inputs: { url: 'https://example.com' } });
 check('legacy input honoured', captured.comments.length === 0 && captured.patches.length === 0);
@@ -434,9 +434,9 @@ check('bad timeout rejected', r.code === 1 && r.stdout.includes('between 1 and 6
 // --------------------------------------------------------------- 16
 console.log('\n[16] engines subset forwarded only when set');
 scenario = { response: (u) => scanResult(u) };
-r = await run({ INPUT_ENGINES: 'axe-core, pa11y' }, { inputs: { url: 'https://example.com' } });
+await run({ INPUT_ENGINES: 'axe-core, pa11y' }, { inputs: { url: 'https://example.com' } });
 check('engines array sent', JSON.stringify(captured.scanBodies.at(-1).payload.engines) === '["axe-core","pa11y"]');
-r = await run({}, { inputs: { url: 'https://example.com' } });
+await run({}, { inputs: { url: 'https://example.com' } });
 check('engines omitted when blank', !('engines' in captured.scanBodies.at(-1).payload));
 
 // --------------------------------------------------------------- 17
@@ -544,7 +544,7 @@ scenario = {
   }),
 };
 captured.comments = [];
-r = await run({ 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'tok_abc' }, { inputs: { url: 'https://example.com' } });
+await run({ 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'tok_abc' }, { inputs: { url: 'https://example.com' } });
 check('warning rendered at 96%', (captured.comments[0]?.body || '').includes('⚠️'), (captured.comments[0]?.body || '').slice(-300));
 
 // --------------------------------------------------------------- 25

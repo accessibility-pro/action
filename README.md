@@ -200,6 +200,8 @@ behaves as `comment: off` and logs a deprecation notice.
 | `manual-review-count` | Findings that need a human look rather than counting as violations. |
 | `warnings-count` | Scan warnings that make the result unrepresentative. |
 | `engines-used` | Comma-separated engines that actually ran. |
+| `plan-tier` | Plan the scan was billed to. Empty when running anonymously on the free tier. |
+| `ci-scans-remaining` | CI scans left in this month's allowance. Empty when anonymous or unlimited. |
 | `sarif-file` / `results-file` | Absolute paths of the files written, when requested. |
 
 ## Permissions
@@ -211,10 +213,10 @@ permissions:
 ```
 
 Both are optional. Without `pull-requests: write` you get a warning and
-the job summary. Without `id-token: write` the scan still runs, but
-free-tier quota is bucketed by the runner's egress IP, which
-GitHub-hosted runners share with every other repository behind the same
-NAT address.
+the job summary. Without `id-token: write` the scan still runs and
+free-tier quota is bucketed on the repository name the workflow reports,
+which nothing verifies; with it, the bucket is proven by a GitHub OIDC
+token, so another workflow cannot spend your repository's allowance.
 
 Pull requests from forks receive a read-only token by design, so the
 comment is skipped there. That is expected, and it never fails the
