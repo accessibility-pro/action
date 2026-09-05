@@ -6,6 +6,18 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.1.2] · 2026-09-05
+
+### Fixed
+- **The action announced the wrong version of itself.** `2.1.1` printed
+  `v2.1.0` on every run and, more consequentially, stamped `2.1.0` as
+  the SARIF tool version, so GitHub code scanning filed findings under a
+  release that never contained the code that produced them. The constant
+  is hand-kept; nothing compared it to the changelog. Now something
+  does: the end-to-end suite fails when the declared version, the run
+  banner and the SARIF tool version disagree with the newest changelog
+  entry.
+
 ## [2.1.1] · 2026-09-05
 
 A correctness pass over what the run reports. No input or output

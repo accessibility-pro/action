@@ -564,6 +564,35 @@ check('exit 1', r.code === 1);
 check('quotes the backend message', r.stdout.includes('Monthly CI scan allowance exhausted'), r.stdout.slice(-400));
 check('not confused with a rate limit', !r.stdout.includes('resets in about'));
 
+// --------------------------------------------------------------- 27
+console.log('\n[27] The announced version is the version being released');
+// v2.1.1 shipped announcing itself as 2.1.0: the constant is hand-kept
+// and nothing compared it to the changelog. It reaches users twice —
+// the run banner and the SARIF tool version code scanning files a
+// finding under — so a stale one misattributes findings to a release
+// that never contained them.
+{
+  const mainSrc = readFileSync(new URL('../src/main.mjs', import.meta.url), 'utf8');
+  const declared = mainSrc.match(/const ACTION_VERSION = '([^']+)'/)?.[1];
+  const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
+  const newest = changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m)?.[1];
+  check('ACTION_VERSION parsed', Boolean(declared), String(declared));
+  check('newest CHANGELOG version parsed', Boolean(newest), String(newest));
+  check(`ACTION_VERSION (${declared}) matches the newest CHANGELOG entry (${newest})`, declared === newest);
+
+  scenario = { response: (u) => scanResult(u) };
+  r = await run({}, { inputs: { url: 'https://example.com' } });
+  check('the banner announces it', r.stdout.includes(`Accessibility Pro Scan v${declared}`), r.stdout.slice(0, 200));
+
+  const versionSarif = join(outDir, 'version.sarif');
+  await run(
+    { 'INPUT_SARIF-FILE': versionSarif },
+    { inputs: { url: 'https://example.com' } }
+  );
+  const toolVersion = JSON.parse(readFileSync(versionSarif, 'utf8')).runs[0].tool.driver.version;
+  check(`SARIF tool version is ${declared}`, toolVersion === declared, String(toolVersion));
+}
+
 backend.close();
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

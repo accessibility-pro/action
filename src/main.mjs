@@ -23,7 +23,11 @@ import {
 import { toSarif } from './sarif.mjs';
 import { pullRequestNumber, readEvent, repository, upsertComment } from './github.mjs';
 
-const ACTION_VERSION = '2.1.0';
+// Printed on every run and stamped as the SARIF tool version, so code
+// scanning attributes a finding to the release that produced it. Bump
+// with the CHANGELOG entry; test/e2e.mjs [27] fails when they diverge
+// (v2.1.1 shipped announcing itself as 2.1.0).
+const ACTION_VERSION = '2.1.2';
 const WCAG_LEVELS = ['A', 'AA', 'AAA'];
 const COMMENT_MODES = ['sticky', 'new', 'off'];
 
