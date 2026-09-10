@@ -17,6 +17,7 @@ import {
   quotaLine,
   renderComment,
   renderSummary,
+  reportUrlFor,
   summarise,
   warningKind,
 } from './render.mjs';
@@ -27,7 +28,7 @@ import { pullRequestNumber, readEvent, repository, upsertComment } from './githu
 // scanning attributes a finding to the release that produced it. Bump
 // with the CHANGELOG entry; test/e2e.mjs [27] fails when they diverge
 // (v2.1.1 shipped announcing itself as 2.1.0).
-const ACTION_VERSION = '2.1.2';
+const ACTION_VERSION = '2.2.0';
 const WCAG_LEVELS = ['A', 'AA', 'AAA'];
 const COMMENT_MODES = ['sticky', 'new', 'off'];
 
@@ -250,7 +251,8 @@ async function main() {
           `${stats.counts.high} high, ${stats.counts.medium} medium, ` +
           `${stats.counts.low} low; ${stats.manualReviewCount} needs review.`
       );
-      if (stats.id) core.info(`Report: ${config.reportDomain}/report/${stats.id}`);
+      const reportUrl = reportUrlFor(stats, config.reportDomain);
+      if (reportUrl) core.info(`Report: ${reportUrl}`);
       results.push(result);
     } catch (err) {
       unscanned.push({ url, message: err?.message || String(err) });
@@ -296,10 +298,10 @@ async function main() {
   core.setOutput('manual-review-count', String(totals.manualReviewCount));
   core.setOutput('engines-used', totals.engines.join(','));
   core.setOutput('warnings-count', String(totals.blocking.length));
-  core.setOutput(
-    'report-url',
-    totals.worst.id ? `${config.reportDomain}/report/${totals.worst.id}` : ''
-  );
+  // Carries the share token: a report is private to its owner, and the
+  // consumer of this output is a PR comment or a chat message read by
+  // someone with no Accessibility Pro session.
+  core.setOutput('report-url', reportUrlFor(totals.worst, config.reportDomain));
   // Plan state, when the caller authenticated. Left empty for anonymous
   // runs rather than zero: there is no account to report against, and a
   // 0 would read as "no allowance left".
@@ -397,12 +399,13 @@ async function main() {
     // `quota` on the stats); an anonymous scan's report has no account
     // that could ever open the AI Fixes tab.
     const attributed = totals.stats.some((s) => s.quota);
+    const worstUrl = reportUrlFor(totals.worst, config.reportDomain);
     core.setFailed(
       `Accessibility gate failed. ${reasons}. ` +
-        (totals.worst.id
+        (worstUrl
           ? attributed
-            ? `Copy-as-PR fixes: ${config.reportDomain}/report/${totals.worst.id}#ai-fixes`
-            : `Report: ${config.reportDomain}/report/${totals.worst.id} (add an accessibility-pro-token to get Copy-as-PR fixes)`
+            ? `Copy-as-PR fixes: ${worstUrl}#ai-fixes`
+            : `Report: ${worstUrl} (add an accessibility-pro-token to get Copy-as-PR fixes)`
           : '')
     );
     return;

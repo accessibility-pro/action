@@ -6,6 +6,37 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.2.0] · 2026-09-10
+
+### Changed
+- **Report links now carry a share token.** Accessibility Pro reports
+  became private to the account that ran them; until now the scan id was
+  itself the key, and this action prints those ids into pull-request
+  comments, so a leaked link was a published report. The backend mints a
+  share token when it persists a CI scan, and `report-url`, the PR
+  comment and the run log all use `…/report/<id>?s=<token>`.
+
+  Nothing to change in your workflow. If you store `report-url`
+  somewhere, store the whole thing: the id alone no longer opens the
+  report.
+- **A scan whose row failed to persist is no longer linked.** There was
+  never anything behind that URL; it just used to 404 instead of being
+  omitted.
+
+### Fixed
+- **The comment counted in-house analyzers as engines.**
+  `summary.engines_used` lists every source that produced a finding,
+  which includes Accessibility Pro's own analyzers (wcag-checks,
+  mobile-accessibility, focus-graph and others) alongside the five
+  third-party engines. The header read its length as "8 engines" while
+  the hosted report says "5 of 5 engines". It now reads the way the
+  report does: `5 of 5 engines + 3 in-house analyzers`.
+
+### Documentation
+- `engines-used` is described as what it is: every source that produced
+  a finding, meaning the engines that ran plus any in-house analyzers.
+  Its value is unchanged.
+
 ## [2.1.2] · 2026-09-05
 
 ### Fixed

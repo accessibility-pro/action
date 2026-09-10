@@ -194,12 +194,12 @@ behaves as `comment: off` and logs a deprecation notice.
 | `passed` | `true` when every scanned URL cleared the gate. |
 | `score` | Score (0 to 100) of the lowest-scoring URL. |
 | `scan-id` | Scan id of the lowest-scoring URL. |
-| `report-url` | Hosted report for the lowest-scoring URL. |
+| `report-url` | Hosted report for the lowest-scoring URL, including its share token. Store the whole URL: the id alone does not open the report. |
 | `violations-critical` / `-high` / `-medium` / `-low` | Counts across every scanned URL. |
 | `total-issues` | Total findings reported as violations. |
 | `manual-review-count` | Findings that need a human look rather than counting as violations. |
 | `warnings-count` | Scan warnings that make the result unrepresentative. |
-| `engines-used` | Comma-separated engines that actually ran. |
+| `engines-used` | Comma-separated sources that produced findings: the engines that ran plus any in-house analyzers. |
 | `plan-tier` | Plan the scan was billed to. Empty when running anonymously on the free tier. |
 | `ci-scans-remaining` | CI scans left in this month's allowance. Empty when anonymous or unlimited. |
 | `sarif-file` / `results-file` | Absolute paths of the files written, when requested. |

@@ -104,12 +104,22 @@ function scanResult(url, overrides = {}) {
       total_issues: (overrides.issues ?? []).length,
       manual_review_count: (overrides.manual_review ?? []).length,
       severity_counts: overrides.counts ?? { critical: 0, high: 0, medium: 0, low: 0 },
-      engines_used: ['axe-core', 'pa11y', 'lighthouse'],
+      engines_used: overrides.engines_used ?? ['axe-core', 'pa11y', 'lighthouse'],
       tested_criteria: [],
       coverage: [],
       status_text: 'PASSED',
     },
-    report_url: '/report/11111111-2222-3333-4444-555555555555',
+    // Reports are private to their owner; the backend mints a share
+    // token at insert so the PR-comment link opens for a signed-out
+    // reader. `in` rather than `??` because scenario [28] overrides this
+    // to null on purpose, and `null ?? default` would hand back the
+    // default and quietly test nothing.
+    share_token: 'share_token' in overrides
+      ? overrides.share_token
+      : 'tok-e2e-share-0123456789',
+    report_url: 'share_token' in overrides && !overrides.share_token
+      ? null
+      : '/report/11111111-2222-3333-4444-555555555555?s=tok-e2e-share-0123456789',
   };
 }
 
@@ -230,7 +240,7 @@ let r = await run({}, { inputs: { url: 'https://example.com' } });
 check('exit 0', r.code === 0, `code=${r.code}\n${r.stderr}`);
 check('passed output true', r.outputs.passed === 'true', JSON.stringify(r.outputs));
 check('score output', r.outputs.score === '92');
-check('report-url built', r.outputs['report-url'].endsWith('/report/11111111-2222-3333-4444-555555555555'));
+check('report-url built', r.outputs['report-url'].endsWith('/report/11111111-2222-3333-4444-555555555555?s=tok-e2e-share-0123456789'));
 check('summary rendered', r.summary.includes('✅ Passed') && r.summary.includes('No automatable WCAG AA violations'));
 check('sticky comment posted', captured.comments.length === 1);
 check('comment carries marker', (captured.comments[0]?.body || '').includes('<!-- accessibility-pro-action -->'));
@@ -592,6 +602,46 @@ console.log('\n[27] The announced version is the version being released');
   const toolVersion = JSON.parse(readFileSync(versionSarif, 'utf8')).runs[0].tool.driver.version;
   check(`SARIF tool version is ${declared}`, toolVersion === declared, String(toolVersion));
 }
+
+// --------------------------------------------------------------- 28
+console.log('\n[28] A report with no share token is not linked at all');
+// Reports are private to their owner (2026-09-08). The backend returns
+// share_token: null only when the scans row failed to persist - there is
+// then nothing behind the URL, so linking to it would put a guaranteed
+// 404 in a PR comment.
+scenario = { response: (u) => scanResult(u, { share_token: null }) };
+captured.comments = [];
+r = await run({}, { inputs: { url: 'https://example.com' } });
+check('exit 0', r.code === 0, `code=${r.code}\n${r.stderr}`);
+check('report-url empty', r.outputs['report-url'] === '', JSON.stringify(r.outputs['report-url']));
+check('no bare id link in the comment', !(captured.comments[0]?.body || '').includes('/report/11111111'), captured.comments[0]?.body?.slice(0, 400));
+check('no bare id link in the log', !r.stdout.includes('/report/11111111'), r.stdout.slice(-400));
+
+// --------------------------------------------------------------- 29
+console.log('\n[29] In-house analyzers are not counted as engines');
+// `engines_used` also lists Accessibility Pro's own analyzers. Counting
+// them made the header read "8 engines" beside a hosted report that says
+// "5 of 5 engines"; the report split the two on 2026-09-08 and the action
+// did not until 2.2.0.
+scenario = {
+  response: (u) => scanResult(u, {
+    engines_used: [
+      'axe-core', 'ibm-equal-access', 'arc-style', 'pa11y', 'lighthouse',
+      'wcag-checks', 'mobile-accessibility', 'focus-graph',
+    ],
+  }),
+};
+captured.comments = [];
+r = await run({}, { inputs: { url: 'https://example.com' } });
+{
+  const body = captured.comments[0]?.body || '';
+  check('five engines and three analyzers', body.includes('5 of 5 engines + 3 in-house analyzers'), body.slice(0, 400));
+  check('never "8 engines"', !body.includes('8 engines'));
+}
+scenario = { response: (u) => scanResult(u) };
+captured.comments = [];
+r = await run({}, { inputs: { url: 'https://example.com' } });
+check('a subset reads as a subset', (captured.comments[0]?.body || '').includes('3 of 5 engines'), (captured.comments[0]?.body || '').slice(0, 400));
 
 backend.close();
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

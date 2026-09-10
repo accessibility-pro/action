@@ -57,6 +57,30 @@ export const UNREPRESENTATIVE_KINDS = new Set([
   'enrichment_failed',
 ]);
 
+/**
+ * The five third-party engines. `summary.engines_used` is the union of
+ * every source that produced a finding, which also carries in-house
+ * analyzers (wcag-checks, mobile-accessibility, focus-graph, ...), so its
+ * length read "8 engines" beside a hosted report that says five. Mirrors
+ * `ENGINES` in `src/lib/report/engineRoster.ts`; the action is
+ * dependency-free, so the list is duplicated on purpose, and
+ * backend/tests/platform/test_engine_roster_parity.py keeps the copies equal.
+ */
+export const ENGINES = ['axe-core', 'ibm-equal-access', 'arc-style', 'pa11y', 'lighthouse'];
+const ENGINE_SET = new Set(ENGINES);
+
+/** "5 of 5 engines + 3 in-house analyzers", the way the hosted report reads. */
+export function rosterSummary(used) {
+  const names = [...new Set((used || []).filter((n) => typeof n === 'string' && n))];
+  if (names.length === 0) return 'no engines reported';
+  const engines = names.filter((n) => ENGINE_SET.has(n)).length;
+  const analyzers = names.length - engines;
+  const head = `${engines} of ${ENGINES.length} engines`;
+  return analyzers
+    ? `${head} + ${analyzers} in-house analyzer${analyzers === 1 ? '' : 's'}`
+    : head;
+}
+
 /** Hidden anchor that lets the action find and update its own comment. */
 export const COMMENT_MARKER = '<!-- accessibility-pro-action -->';
 
@@ -132,6 +156,12 @@ function severityCounts(result) {
   };
 }
 
+/** The public URL of a scan's report, or '' when there is nothing to link to. */
+export function reportUrlFor(stats, reportDomain) {
+  if (!stats?.id || !stats?.shareToken) return '';
+  return `${reportDomain}/report/${stats.id}?s=${encodeURIComponent(stats.shareToken)}`;
+}
+
 /** Aggregate every field the outputs and the gate need from one scan. */
 export function summarise(result) {
   const counts = severityCounts(result);
@@ -139,6 +169,12 @@ export function summarise(result) {
   const warnings = result?.warnings || [];
   return {
     id: result?.id || '',
+    // Reports became private to their owner on 2026-09-08. A PR comment
+    // is read by someone signed out of Accessibility Pro, so the link
+    // has to carry the share token the backend minted when it persisted
+    // this scan. Absent when the row failed to persist - `reportUrlFor`
+    // then yields '' and the link is omitted rather than 404ing.
+    shareToken: result?.share_token || '',
     url: result?.url || '',
     score: Math.round(Number(result?.score ?? 0)),
     passed: result?.passed !== false,
@@ -300,11 +336,9 @@ export function renderScanSection(
   { reportDomain, topIssues = 5, heading = '###', showVerdict = true }
 ) {
   const stats = summarise(result);
-  const reportUrl = stats.id ? `${reportDomain}/report/${stats.id}` : '';
+  const reportUrl = reportUrlFor(stats, reportDomain);
   const verdict = stats.passed ? '✅ Passed · ' : '❌ Failed · ';
-  const engines = stats.engines.length
-    ? `${stats.engines.length} engine${stats.engines.length === 1 ? '' : 's'}`
-    : 'no engines reported';
+  const engines = rosterSummary(stats.engines);
 
   const lines = [
     `${heading} ${showVerdict ? verdict : ''}${md(stats.url)}`,
