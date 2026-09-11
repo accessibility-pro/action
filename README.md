@@ -278,9 +278,10 @@ monthly interactive scans:
 | Plan | CI scans / month |
 |---|---|
 | Free (anonymous) | 10 per day per repository |
-| Solo | 1,000 |
-| Team | 5,000 |
-| Business | 20,000 |
+| Free (signed in) | 300 |
+| Developer | 1,000 |
+| Team | 10,000 |
+| Business | 40,000 |
 
 CI is metered separately because it is a different workload: a CI scan
 is a single page, where an interactive scan crawls your site and pays

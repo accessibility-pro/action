@@ -632,7 +632,7 @@ scenario = {
   }),
 };
 captured.comments = [];
-r = await run({}, { inputs: { url: 'https://example.com' } });
+await run({}, { inputs: { url: 'https://example.com' } });
 {
   const body = captured.comments[0]?.body || '';
   check('five engines and three analyzers', body.includes('5 of 5 engines + 3 in-house analyzers'), body.slice(0, 400));
@@ -640,7 +640,7 @@ r = await run({}, { inputs: { url: 'https://example.com' } });
 }
 scenario = { response: (u) => scanResult(u) };
 captured.comments = [];
-r = await run({}, { inputs: { url: 'https://example.com' } });
+await run({}, { inputs: { url: 'https://example.com' } });
 check('a subset reads as a subset', (captured.comments[0]?.body || '').includes('3 of 5 engines'), (captured.comments[0]?.body || '').slice(0, 400));
 
 backend.close();
