@@ -65,8 +65,41 @@ export function repository() {
   return repo;
 }
 
-/** Find this action's previous comment on the PR, if it left one. */
+/** The workflow token's own identity. `GET /user` refuses it with 403. */
+const WORKFLOW_TOKEN_LOGIN = 'github-actions[bot]';
+
+/**
+ * The login this token comments as: the PAT's user when `GET /user`
+ * answers, the workflow token's bot otherwise.
+ */
+async function tokenLogin(token) {
+  try {
+    const res = await httpRequestWithRetry(`${API}/user`, {
+      headers: apiHeaders(token),
+      timeoutMs: 30_000,
+      retries: 1,
+      retryDelayMs: 2_000,
+    });
+    if (res.status === 200) {
+      const login = parseJson(res, 'Get the token user')?.login;
+      if (typeof login === 'string' && login) return login;
+    }
+  } catch (err) {
+    core.debug(`Could not resolve the token's login: ${err.message}`);
+  }
+  return WORKFLOW_TOKEN_LOGIN;
+}
+
+/**
+ * Find this action's previous comment on the PR, if it left one.
+ *
+ * Only a comment this token wrote counts (F23, 2026-09-12). The marker is
+ * public, so matching on it alone let anyone who can comment on the PR
+ * plant it first; the action then wrote its verdict into their comment on
+ * every run, and they could edit it to "passed" in between.
+ */
 async function findExistingComment(repo, prNumber, token) {
+  const login = await tokenLogin(token);
   for (let page = 1; page <= 10; page++) {
     const res = await httpRequestWithRetry(
       `${API}/repos/${repo}/issues/${prNumber}/comments?per_page=100&page=${page}`,
@@ -75,7 +108,9 @@ async function findExistingComment(repo, prNumber, token) {
     if (res.status === 403 || res.status === 404) return { denied: res.status };
     if (res.status !== 200) return { denied: res.status };
     const comments = parseJson(res, 'List PR comments');
-    const match = comments.find((c) => (c.body || '').includes(COMMENT_MARKER));
+    const match = comments.find(
+      (c) => c.user?.login === login && (c.body || '').includes(COMMENT_MARKER)
+    );
     if (match) return { comment: match };
     if (comments.length < 100) return {};
   }

@@ -84,6 +84,58 @@ export function rosterSummary(used) {
 /** Hidden anchor that lets the action find and update its own comment. */
 export const COMMENT_MARKER = '<!-- accessibility-pro-action -->';
 
+const URL_IN_TEXT = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>`]+/gi;
+
+/**
+ * A URL with its credential-bearing parts replaced: userinfo, query and
+ * fragment. Origin and path are kept, so the reader still sees which page.
+ *
+ * F6 (2026-09-12). The README has auth-gated preview URLs passed through a
+ * secret, and those carry `user:pass@` or a bypass token in the query. The
+ * backend echoes the URL unchanged, and the PR comment, job summary, SARIF
+ * and results file are not covered by the runner's log masking.
+ */
+export function redactUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  if (!parsed.username && !parsed.password && !parsed.search && !parsed.hash) return url;
+  const userinfo = parsed.username || parsed.password ? '***@' : '';
+  const query = parsed.search ? '?***' : '';
+  const fragment = parsed.hash ? '#***' : '';
+  return `${parsed.protocol}//${userinfo}${parsed.host}${parsed.pathname}${query}${fragment}`;
+}
+
+/**
+ * `value` with every URL on one of `hosts` redacted, and every URL that
+ * carries userinfo redacted whatever its host, in every string at any
+ * depth. Other URLs (rule help links) are left exactly as they were.
+ */
+export function redactUrlsIn(value, hosts) {
+  if (typeof value === 'string') {
+    return value.replace(URL_IN_TEXT, (match) => {
+      let parsed;
+      try {
+        parsed = new URL(match);
+      } catch {
+        return match;
+      }
+      const ours = hosts.has(parsed.hostname) || parsed.username || parsed.password;
+      return ours ? redactUrl(match) : match;
+    });
+  }
+  if (Array.isArray(value)) return value.map((item) => redactUrlsIn(item, hosts));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, redactUrlsIn(item, hosts)])
+    );
+  }
+  return value;
+}
+
 /** GitHub rejects issue comments above 65536 characters. */
 const MAX_COMMENT_BYTES = 65_000;
 

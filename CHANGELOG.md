@@ -6,6 +6,29 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.2.1] · 2026-09-13
+
+### Security
+- **Credentials in the scanned URL are no longer published.** An
+  auth-gated preview URL passed through a secret (`https://user:pass@…`,
+  or a `?x-vercel-protection-bypass=…` token) was echoed verbatim into
+  the PR comment, the job summary, SARIF, annotations and the results
+  file, none of which the runner's log masking covers. On the scanned
+  host, a URL's userinfo, query and fragment now read `***`
+  (`https://***@staging.example.com/app?***`); the path is kept so the
+  page is still recognisable. A URL carrying credentials, and its
+  password, are also masked in the run log. Rule help links on other
+  hosts are unchanged, and the backend still receives the real URL.
+- **The sticky comment is only ever this action's own.** The comment
+  marker is public, so anyone able to comment on a pull request could
+  plant it first; the action then wrote its verdict into their comment
+  on every run, and they could edit it between pushes. A marker comment
+  is now reused only when its author is the token's own identity
+  (`github-actions[bot]` for the workflow token, or the user behind a
+  personal access token). With a GitHub App installation token the
+  action cannot tell which comments are its own, so it posts a new
+  comment on each run instead of updating one.
+
 ## [2.2.0] · 2026-09-10
 
 ### Changed

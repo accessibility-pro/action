@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 const ACTION = process.argv[2] || fileURLToPath(new URL('..', import.meta.url));
 
 let scenario = {};
-const captured = { comments: [], patches: [], scanBodies: [] };
+const captured = { comments: [], patches: [], patchUrls: [], scanBodies: [] };
 
 const backend = createServer((req, res) => {
   const chunks = [];
@@ -33,7 +33,16 @@ const backend = createServer((req, res) => {
     const body = Buffer.concat(chunks).toString('utf8');
 
     // --- mock GitHub API ---
+    // The workflow token cannot read /user; a PAT can.
+    if (req.url === '/user' && req.method === 'GET') {
+      res.writeHead(scenario.tokenUser ? 200 : 403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scenario.tokenUser
+        ? { login: scenario.tokenUser }
+        : { message: 'Resource not accessible by integration' }));
+      return;
+    }
     if (req.url.match(/\/issues\/comments\/\d+$/) && req.method === 'PATCH') {
+      captured.patchUrls.push(req.url);
       captured.patches.push(JSON.parse(body));
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ id: 1 }));
@@ -401,7 +410,7 @@ check('no stack trace leaked', !r.stdout.includes('at async'));
 console.log('\n[12] Sticky update reuses the existing comment');
 scenario = {
   response: (u) => scanResult(u),
-  existingComments: [{ id: 77, body: 'old <!-- accessibility-pro-action --> body' }],
+  existingComments: [{ id: 77, user: { login: 'github-actions[bot]' }, body: 'old <!-- accessibility-pro-action --> body' }],
 };
 captured.comments = [];
 captured.patches = [];
@@ -642,6 +651,95 @@ scenario = { response: (u) => scanResult(u) };
 captured.comments = [];
 await run({}, { inputs: { url: 'https://example.com' } });
 check('a subset reads as a subset', (captured.comments[0]?.body || '').includes('3 of 5 engines'), (captured.comments[0]?.body || '').slice(0, 400));
+
+// --------------------------------------------------------------- 30
+console.log('\n[30] Sticky mode only reuses a comment this token wrote (F23)');
+{
+  const MARKER_BODY = 'build gate passed <!-- accessibility-pro-action -->';
+  scenario = {
+    response: (u) => scanResult(u),
+    existingComments: [
+      { id: 5, user: { login: 'mallory' }, body: MARKER_BODY },
+      { id: 77, user: { login: 'github-actions[bot]' }, body: `old ${MARKER_BODY}` },
+    ],
+  };
+  captured.comments = [];
+  captured.patches = [];
+  captured.patchUrls = [];
+  await run({}, { inputs: { url: 'https://example.com' } });
+  check('the planted comment is never edited', !captured.patchUrls.some((u) => u.endsWith('/comments/5')), captured.patchUrls.join(','));
+  check('the bot comment is updated instead', captured.patchUrls.length === 1 && captured.patchUrls[0].endsWith('/comments/77'), captured.patchUrls.join(','));
+
+  scenario = { response: (u) => scanResult(u), existingComments: [{ id: 5, user: { login: 'mallory' }, body: MARKER_BODY }] };
+  captured.comments = [];
+  captured.patchUrls = [];
+  await run({}, { inputs: { url: 'https://example.com' } });
+  check('only a planted comment: post a fresh one', captured.patchUrls.length === 0 && captured.comments.length === 1, `patches=${captured.patchUrls.length} posts=${captured.comments.length}`);
+
+  scenario = {
+    response: (u) => scanResult(u),
+    tokenUser: 'alice',
+    existingComments: [
+      { id: 6, user: { login: 'github-actions[bot]' }, body: MARKER_BODY },
+      { id: 9, user: { login: 'alice' }, body: MARKER_BODY },
+    ],
+  };
+  captured.comments = [];
+  captured.patchUrls = [];
+  await run({}, { inputs: { url: 'https://example.com' } });
+  check('a PAT reuses its own user\'s comment', captured.patchUrls.length === 1 && captured.patchUrls[0].endsWith('/comments/9'), captured.patchUrls.join(','));
+}
+
+// --------------------------------------------------------------- 31
+console.log('\n[31] Credentials in the scanned URL are never published (F6)');
+{
+  const SECRET_URL = 'https://preview-user:S3cr3t%2Fpass@staging.acme.test/app?x-vercel-protection-bypass=BYPASS-TOKEN-123#t=FRAG-SECRET';
+  const SECRETS = ['preview-user', 'S3cr3t', 'BYPASS-TOKEN-123', 'FRAG-SECRET'];
+  const leaks = (text) => SECRETS.filter((s) => text.includes(s));
+  // `::add-mask::` lines are how a value gets masked; they carry it by design.
+  const logWithoutMaskCommands = (out) => out.split('\n').filter((l) => !l.startsWith('::add-mask::')).join('\n');
+  const HELP = 'https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=axeAPI';
+  scenario = {
+    response: (u) => scanResult(u, {
+      passed: false,
+      counts: { critical: 1, high: 0, medium: 0, low: 0 },
+      issues: [{ ...RICH_ISSUE, help_url: HELP, source_url: u, description: `Seen on ${u} after load` }],
+    }),
+  };
+  captured.comments = [];
+  captured.scanBodies = [];
+  const dir31 = mkdtempSync(join(tmpdir(), 'apf6-'));
+  r = await run(
+    { 'INPUT_SARIF-FILE': join(dir31, 'a.sarif'), 'INPUT_RESULTS-FILE': join(dir31, 'raw.json') },
+    { inputs: { url: SECRET_URL } }
+  );
+  const body = captured.comments[0]?.body || '';
+  check('the backend still receives the real URL', captured.scanBodies.at(-1)?.payload.url === SECRET_URL);
+  check('comment carries no credential', body.length > 0 && leaks(body).length === 0, leaks(body).join(','));
+  check('comment still names the page', body.includes('https://***@staging.acme.test/app?***#***'), body.slice(0, 300));
+  check('job summary carries no credential', leaks(r.summary).length === 0, leaks(r.summary).join(','));
+  const sarifText = readFileSync(join(dir31, 'a.sarif'), 'utf8');
+  check('SARIF carries no credential', leaks(sarifText).length === 0, leaks(sarifText).join(','));
+  check('a rule help link on another host is untouched', sarifText.includes(HELP));
+  const rawText = readFileSync(join(dir31, 'raw.json'), 'utf8');
+  check('results file carries no credential', leaks(rawText).length === 0, leaks(rawText).join(','));
+  const log = logWithoutMaskCommands(r.stdout);
+  check('log and annotations carry no credential', leaks(log).length === 0, leaks(log).join(','));
+  // Workflow commands escape `%` as `%25`; the runner decodes it again.
+  check('the URL and its password are masked', r.stdout.includes(`::add-mask::${SECRET_URL.replace(/%/g, '%25')}`) && r.stdout.includes('::add-mask::S3cr3t/pass'));
+
+  scenario = { failFor: 'staging.acme.test', response: (u) => scanResult(u) };
+  r = await run({}, { inputs: { url: `${SECRET_URL}\nhttps://example.com` } });
+  const failLog = logWithoutMaskCommands(r.stdout);
+  check('a failed scan names the page', failLog.includes('https://***@staging.acme.test/app?***#***'), failLog.slice(-600));
+  check('a failed scan carries no credential', leaks(failLog).length === 0 && leaks(r.summary).length === 0, leaks(failLog).join(','));
+}
+
+// Plain URLs are shown exactly as before.
+scenario = { response: (u) => scanResult(u) };
+captured.comments = [];
+r = await run({}, { inputs: { url: 'https://example.com/pricing' } });
+check('a URL with nothing to redact is unchanged', (captured.comments[0]?.body || '').includes('https://example.com/pricing') && !r.stdout.includes('::add-mask::https://example.com'));
 
 backend.close();
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

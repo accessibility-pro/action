@@ -15,6 +15,8 @@ import * as core from './core.mjs';
 import { mintOidcToken, resolveGate, runScan } from './api.mjs';
 import {
   quotaLine,
+  redactUrl,
+  redactUrlsIn,
   renderComment,
   renderSummary,
   reportUrlFor,
@@ -28,7 +30,7 @@ import { pullRequestNumber, readEvent, repository, upsertComment } from './githu
 // scanning attributes a finding to the release that produced it. Bump
 // with the CHANGELOG entry; test/e2e.mjs [27] fails when they diverge
 // (v2.1.1 shipped announcing itself as 2.1.0).
-const ACTION_VERSION = '2.2.0';
+const ACTION_VERSION = '2.2.1';
 const WCAG_LEVELS = ['A', 'AA', 'AAA'];
 const COMMENT_MODES = ['sticky', 'new', 'off'];
 
@@ -50,6 +52,21 @@ function normaliseOrigin(value, inputName) {
 function readConfig() {
   const urls = core.getListInput('url', { required: true });
   if (!urls.length) throw new Error("Input required and not supplied: url");
+  // A URL carrying credentials is masked in the log as given, and so is its
+  // password on its own (F6). Every other surface gets `redactUrlsIn`.
+  for (const url of urls) {
+    if (redactUrl(url) === url) continue;
+    core.setSecret(url);
+    try {
+      const { password } = new URL(url);
+      if (password) {
+        core.setSecret(password);
+        core.setSecret(decodeURIComponent(password));
+      }
+    } catch {
+      // Not a URL; the backend will say so.
+    }
+  }
 
   const wcagLevel = core.getInput('wcag-level').toUpperCase() || 'AA';
   if (!WCAG_LEVELS.includes(wcagLevel)) {
@@ -222,10 +239,21 @@ async function main() {
   // URL is attempted; unscanned pages are reported at the end and never
   // counted as passing.
   const unscanned = [];
+  // Everything published below is derived from `results` and `unscanned`,
+  // so redacting as they are filled covers every surface (F6).
+  const hosts = new Set();
   for (const url of config.urls) {
-    core.startGroup(`Scanning ${url}`);
     try {
-      const result = await runScan({
+      hosts.add(new URL(url).hostname);
+    } catch {
+      // Not a URL; nothing of it to redact.
+    }
+  }
+  for (const url of config.urls) {
+    const shownUrl = redactUrlsIn(url, hosts);
+    core.startGroup(`Scanning ${shownUrl}`);
+    try {
+      const scanned = await runScan({
         backendUrl: config.backendUrl,
         url,
         wcagLevel: config.wcagLevel,
@@ -236,10 +264,11 @@ async function main() {
         timeoutMs: config.timeoutMs,
         retries: config.retries,
       });
+      const result = redactUrlsIn(scanned, hosts);
       const stats = summarise(result);
       if (!stats.hasBackendVerdict) {
         throw new Error(
-          `The backend at ${config.backendUrl} returned a scan of ${url} with no ` +
+          `The backend at ${config.backendUrl} returned a scan of ${shownUrl} with no ` +
             'pass/fail verdict. This action reads the verdict from the scanner ' +
             'rather than recomputing one, so it cannot gate on this response. ' +
             'Upgrade the self-hosted backend, or unset `backend-url` to use the ' +
@@ -255,8 +284,9 @@ async function main() {
       if (reportUrl) core.info(`Report: ${reportUrl}`);
       results.push(result);
     } catch (err) {
-      unscanned.push({ url, message: err?.message || String(err) });
-      core.warning(`Could not scan ${url}: ${err?.message || err}`);
+      const message = redactUrlsIn(err?.message || String(err), hosts);
+      unscanned.push({ url: shownUrl, message });
+      core.warning(`Could not scan ${shownUrl}: ${message}`);
     } finally {
       core.endGroup();
     }
