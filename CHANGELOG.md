@@ -22,6 +22,33 @@ follow [SemVer](https://semver.org).
   build silently. Requested in accessibility-pro/action#2: until now the
   only way past a reviewed finding was dropping a whole engine.
 
+### Scanner
+The verdict comes from the hosted scanner, so these reached every
+version of the action the day they deployed; they are listed here
+because a `fail-on: wcag` build sees them.
+- **Checkboxes are grouped by their form, not by the page.** IBM's
+  `input_checkboxes_grouped` collected same-named checkboxes across the
+  whole page, so two forms with one `consent` box each failed as an
+  ungrouped pair. The live-DOM verifier now scopes the name to the form
+  owner, the way a browser does; a checkbox alone in its form, or whose
+  siblings share a `fieldset`, is contradicted and moved to manual
+  review (accessibility-pro/action#2).
+- **`aria_article_label_unique` is best practice.** `article` is not a
+  landmark and no success criterion asks articles for unique names. It
+  is reported as an advisory note and never fails the gate
+  (accessibility-pro/action#2).
+- **Heavy pages under load keep their results.** Each live-page filter
+  stage has a ceiling and a scan's pages are capped process-wide, so two
+  heavy scans running side by side no longer stall a page to its timeout
+  and lose its engine results. Ad and measurement hosts are blocked at
+  the browser, a page whose renderer crashes is analysed once more, and
+  a site that rejects unknown query strings is fetched without the
+  cache-buster.
+- **Fewer wrong findings on overlays and shadow DOM.** A marketing
+  popup that hides the page with `aria-hidden` no longer produces a page
+  of false findings, and elements inside shadow roots are located for
+  verification instead of shipping unverified.
+
 ## [2.2.1] · 2026-09-13
 
 ### Security
