@@ -6,6 +6,22 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.3.0] · 2026-09-17
+
+### Added
+- **`ignore-rules`.** Findings you have reviewed and do not want gating
+  the build, one per line: a rule id as the report and SARIF print it
+  (`ibm-input_checkboxes_grouped`), optionally followed by `@` and a
+  fragment of the URL or selector it applies to
+  (`color-contrast@/pricing`). The scanner applies the list before its
+  gate, so the verdict still comes from one place. Ignored findings stay
+  in the report and the score, carry an "ignored via ignore-rules" chip
+  in the comment, are not annotated, and are written to SARIF as
+  suppressed results rather than dropped. An entry that matches nothing
+  is named in the comment and warned in the log, so a typo cannot pass a
+  build silently. Requested in accessibility-pro/action#2: until now the
+  only way past a reviewed finding was dropping a whole engine.
+
 ## [2.2.1] · 2026-09-13
 
 ### Security

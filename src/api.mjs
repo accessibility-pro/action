@@ -193,6 +193,7 @@ export async function runScan({
   wcagLevel,
   gate,
   engines,
+  ignoreRules = [],
   token,
   oidcToken,
   timeoutMs,
@@ -221,6 +222,7 @@ export async function runScan({
     runner: `accessibility-pro/action@${process.env.GITHUB_ACTION_REF || 'v2'}`,
   };
   if (engines.length) payload.engines = engines;
+  if (ignoreRules.length) payload.ignore_rules = ignoreRules;
 
   const res = await httpRequestWithRetry(endpoint, {
     method: 'POST',

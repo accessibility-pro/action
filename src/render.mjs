@@ -244,6 +244,10 @@ export function summarise(result) {
     warnings,
     blockingWarnings: unrepresentativeWarnings(warnings),
     gateExcluded: Number(result?.gate_excluded_framework_managed || 0),
+    gateIgnored: Number(result?.gate_ignored || 0),
+    ignoreUnmatched: Array.isArray(result?.ignore_rules_unmatched)
+      ? result.ignore_rules_unmatched.map(String)
+      : [],
     truncation: result?.truncation || null,
     failReason: typeof result?.summary_text === 'string' ? result.summary_text : '',
     durationMs: Number(result?.scan_duration_ms || 0),
@@ -322,6 +326,9 @@ function issueChips(issue) {
     chips.push(
       `does not gate the build (${md(issue.framework_name || issue.framework_managed)})`
     );
+  }
+  if (issue.gate_ignored) {
+    chips.push(`ignored via ignore-rules: ${md(issue.gate_ignored)}`);
   }
   return chips.join(' · ');
 }
@@ -451,6 +458,21 @@ export function renderScanSection(
         '(component-library portals, consent widgets, streaming-SSR artifacts) ' +
         `${one ? 'is' : 'are'} shown in the report but ${one ? 'does' : 'do'} not ` +
         'gate the build, because they cannot be fixed in your application code.'
+    );
+  }
+  if (stats.gateIgnored > 0) {
+    const one = stats.gateIgnored === 1;
+    notes.push(
+      `${stats.gateIgnored} finding${one ? '' : 's'} matched ignore-rules and ` +
+        `${one ? 'does' : 'do'} not gate the build. ${one ? 'It' : 'They'} still ` +
+        `count${one ? 's' : ''} in the report and the score.`
+    );
+  }
+  if (stats.ignoreUnmatched.length > 0) {
+    notes.push(
+      `ignore-rules entr${stats.ignoreUnmatched.length === 1 ? 'y' : 'ies'} that ` +
+        `matched no finding: ${stats.ignoreUnmatched.map(md).join(', ')}. ` +
+        'The verdict did not depend on it.'
     );
   }
   if (stats.truncation && stats.truncation.hidden_count) {

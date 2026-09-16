@@ -100,6 +100,15 @@ function runForScan(scan, version) {
         },
       ],
       partialFingerprints: { fingerprint: bucketKeyFor(issue) },
+      // An acknowledged finding is suppressed, not deleted: code
+      // scanning keeps tracking it and shows why it does not count.
+      ...(issue.gate_ignored
+        ? {
+            suppressions: [
+              { kind: 'external', justification: `ignore-rules: ${issue.gate_ignored}` },
+            ],
+          }
+        : {}),
       properties: {
         wcag: issue.wcag || '',
         severity: issue.severity || '',
@@ -108,6 +117,7 @@ function runForScan(scan, version) {
         confidence_bucket: issue.confidence_bucket || '',
         occurrences: issue.occurrences ?? 1,
         framework_managed: issue.framework_managed || '',
+        gate_ignored: issue.gate_ignored || '',
       },
     });
   }

@@ -31,6 +31,9 @@ That is the whole setup. No checkout, no `setup-node`, no browser
 install: the scan runs on our infrastructure and the action is a
 dependency-free Node script that talks to it.
 
+Full reference, including exit codes and allow-listing the scanner:
+[accessibilitypro.app/docs/github-action](https://www.accessibilitypro.app/docs/github-action).
+
 ## What you get
 
 One comment per pull request, updated in place on every push rather
@@ -125,6 +128,25 @@ source file to annotate.
 No new criticals, and no more than five high-severity findings.
 Severities you leave out are unlimited.
 
+### Acknowledge a finding you have reviewed
+
+```yaml
+        with:
+          url: https://www.acme.example/contact
+          fail-on: wcag
+          ignore-rules: |
+            ibm-input_checkboxes_grouped
+            color-contrast@.legal-footnote
+```
+
+Use the rule id as the report or SARIF prints it. A fragment after `@`
+limits the entry to findings whose page URL, location or occurrence
+selector contains it. Ignored findings stay in the report and the score
+and are marked as ignored in the comment; they just stop failing the
+build. An entry that matches nothing is named in the comment and warned
+in the log, so a typo cannot pass a build. This is the fix for "one
+reviewed finding, or drop the whole engine".
+
 ### Use the results in later steps
 
 ```yaml
@@ -170,6 +192,7 @@ the job summary and the workflow's own failure notification.
 | `fail-on` | `error` | `error` (critical or high fails), `warning` (adds medium), `wcag` (any Level A/AA criterion failure), `none` (report only). |
 | `thresholds` | `''` | JSON object of per-severity allowances that overrides `fail-on`, e.g. `{"critical": 0, "high": 3}`. |
 | `fail-on-unrepresentative` | `true` | Fail when the scanner could not see the real page. See below. |
+| `ignore-rules` | `''` | Reviewed findings that must not gate the build, one rule id per line, optionally `@` a URL or selector fragment. See below. |
 | `engines` | *(all five)* | Comma-separated subset of `axe-core`, `lighthouse`, `pa11y`, `ibm-equal-access`, `arc-style`. |
 | `comment` | `sticky` | `sticky` updates one comment in place, `new` adds one per run, `off` disables it. |
 | `top-issues` | `5` | Findings listed inline, ranked by impact (1 to 25). |
@@ -240,6 +263,8 @@ gate a build:
 Both are disclosed in the comment rather than silently dropped. Before
 v2 the action recomputed its own verdict from severity counts and could
 therefore fail a build the report called a pass. There is now one gate.
+`ignore-rules` is applied by the same gate, so a finding you acknowledge
+is skipped by the scanner's verdict rather than by a second one here.
 
 ## When a scan is not representative
 

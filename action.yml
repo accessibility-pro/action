@@ -42,6 +42,17 @@ inputs:
       pass. Ignored when `fail-on` is `none`.
     required: false
     default: 'true'
+  ignore-rules:
+    description: |
+      Findings you have reviewed and do not want gating the build, one
+      per line: a rule id as the report and SARIF print it
+      (ibm-input_checkboxes_grouped), optionally followed by @ and a
+      fragment of the URL or selector it applies to
+      (color-contrast@/pricing). Ignored findings stay in the report and
+      the score; the comment says what was ignored, and an entry that
+      matches nothing is reported so a typo cannot pass a build.
+    required: false
+    default: ''
   engines:
     description: |
       Comma-separated subset of engines to run. Defaults to all five:

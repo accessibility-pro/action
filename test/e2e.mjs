@@ -108,6 +108,9 @@ function scanResult(url, overrides = {}) {
     warnings: overrides.warnings ?? [],
     summary_text: overrides.summary_text ?? (overrides.passed === false ? 'FAILED: critical violations (2) exceed threshold (0)' : 'PASSED'),
     gate_excluded_framework_managed: overrides.gateExcluded ?? 0,
+    ...('gate_ignored' in overrides
+      ? { gate_ignored: overrides.gate_ignored, ignore_rules_unmatched: overrides.ignore_rules_unmatched ?? [] }
+      : {}),
     truncation: overrides.truncation ?? undefined,
     summary: {
       total_issues: (overrides.issues ?? []).length,
@@ -740,6 +743,56 @@ scenario = { response: (u) => scanResult(u) };
 captured.comments = [];
 r = await run({}, { inputs: { url: 'https://example.com/pricing' } });
 check('a URL with nothing to redact is unchanged', (captured.comments[0]?.body || '').includes('https://example.com/pricing') && !r.stdout.includes('::add-mask::https://example.com'));
+
+// ---------------------------------------------------------------- 37
+console.log('\n[37] ignore-rules: acknowledged findings are sent, disclosed, suppressed, not annotated');
+const IGNORED_ISSUE = {
+  id: 'ibm-input_checkboxes_grouped-32ccc7c1',
+  rule_id: 'ibm-input_checkboxes_grouped',
+  title: 'Checkbox input and others with the name "consent" are not grouped together',
+  description: 'IBM groups same-named checkboxes across the page.',
+  severity: 'high',
+  wcag: '1.3.1',
+  source_engine: 'ibm-equal-access',
+  evidence_level: 'single-engine',
+  confidence_bucket: 'medium',
+  impact_score: 40,
+  location: 'form#enquiry input[name=consent]',
+  gate_ignored: 'ibm-input_checkboxes_grouped',
+};
+scenario = {
+  response: (u) =>
+    scanResult(u, {
+      passed: true,
+      score: 89,
+      issues: [IGNORED_ISSUE],
+      gate_ignored: 1,
+      ignore_rules_unmatched: ['no-such-rule'],
+    }),
+};
+captured.comments = [];
+{
+  const dir37 = mkdtempSync(join(tmpdir(), 'apscan-ignore-'));
+  r = await run(
+    { 'INPUT_IGNORE-RULES': 'ibm-input_checkboxes_grouped\nno-such-rule', 'INPUT_SARIF-FILE': join(dir37, 'a11y.sarif') },
+    { inputs: { url: 'https://example.com/kontakti/' } }
+  );
+  const ignorePayload = captured.scanBodies.at(-1).payload;
+  check('ignore_rules sent to the backend, in order', JSON.stringify(ignorePayload.ignore_rules) === JSON.stringify(['ibm-input_checkboxes_grouped', 'no-such-rule']), JSON.stringify(ignorePayload.ignore_rules));
+  check('exit 0 on the backend verdict', r.code === 0, `code=${r.code}\n${r.stderr.slice(-400)}`);
+  const body37 = captured.comments[0]?.body || '';
+  check('comment discloses the ignored finding', body37.includes('matched ignore-rules and does not gate the build'), body37.slice(0, 800));
+  check('comment names the unmatched entry', body37.includes('matched no finding: no-such-rule'));
+  check('issue chip says ignored', body37.includes('ignored via ignore-rules: ibm-input_checkboxes_grouped'));
+  check('unmatched entry warned in the log', r.stdout.includes('::warning::ignore-rules entry "no-such-rule" matched no finding'), r.stdout.slice(0, 600));
+  check('ignored finding is not annotated', !/::(warning|error) title=WCAG 1\.3\.1/.test(r.stdout), r.stdout.slice(0, 600));
+  const sarif37 = JSON.parse(readFileSync(join(dir37, 'a11y.sarif'), 'utf8'));
+  const res37 = sarif37.runs[0].results[0];
+  check('SARIF result is suppressed, not dropped', res37?.suppressions?.[0]?.kind === 'external' && res37.suppressions[0].justification === 'ignore-rules: ibm-input_checkboxes_grouped', JSON.stringify(res37?.suppressions));
+}
+scenario = { response: (u) => scanResult(u) };
+await run({}, { inputs: { url: 'https://example.com' } });
+check('no ignore-rules input sends no ignore_rules field', !('ignore_rules' in captured.scanBodies.at(-1).payload));
 
 backend.close();
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

@@ -30,7 +30,7 @@ import { pullRequestNumber, readEvent, repository, upsertComment } from './githu
 // scanning attributes a finding to the release that produced it. Bump
 // with the CHANGELOG entry; test/e2e.mjs [27] fails when they diverge
 // (v2.1.1 shipped announcing itself as 2.1.0).
-const ACTION_VERSION = '2.2.1';
+const ACTION_VERSION = '2.3.0';
 const WCAG_LEVELS = ['A', 'AA', 'AAA'];
 const COMMENT_MODES = ['sticky', 'new', 'off'];
 
@@ -126,6 +126,8 @@ function readConfig() {
     failOn,
     gate,
     engines: core.getListInput('engines', { separator: /[\r\n,]+/ }),
+    // Newlines only: a selector fragment may carry a comma.
+    ignoreRules: core.getListInput('ignore-rules'),
     commentMode,
     annotations: core.getBooleanInput('annotations', true),
     failOnUnrepresentative: core.getBooleanInput('fail-on-unrepresentative', true),
@@ -181,9 +183,9 @@ function emitAnnotations(results, { failed, gate, limit = 10 }) {
     for (const issue of result.issues || []) {
       if (emitted >= limit) return;
       const severity = String(issue.severity || '').toLowerCase();
-      // Framework-managed findings never gate; annotating them would
-      // contradict the verdict beside them.
-      if (issue.framework_managed) continue;
+      // Framework-managed and acknowledged findings never gate;
+      // annotating them would contradict the verdict beside them.
+      if (issue.framework_managed || issue.gate_ignored) continue;
       if (!gates(issue, severity)) continue;
       const where = issue.location || (issue.occurrence_selectors || [])[0] || result.url;
       annotate(`${issue.title || 'Accessibility violation'} at ${where}`, {
@@ -259,6 +261,7 @@ async function main() {
         wcagLevel: config.wcagLevel,
         gate: config.gate,
         engines: config.engines,
+        ignoreRules: config.ignoreRules,
         token: config.token,
         oidcToken,
         timeoutMs: config.timeoutMs,
@@ -282,6 +285,19 @@ async function main() {
       );
       const reportUrl = reportUrlFor(stats, config.reportDomain);
       if (reportUrl) core.info(`Report: ${reportUrl}`);
+      if (stats.gateIgnored > 0) {
+        core.info(
+          `${stats.gateIgnored} finding${stats.gateIgnored === 1 ? '' : 's'} acknowledged ` +
+            'through ignore-rules: shown in the report, not gating the build.'
+        );
+      }
+      // A typo in ignore-rules must not look like a fix.
+      for (const entry of stats.ignoreUnmatched) {
+        core.warning(
+          `ignore-rules entry "${entry}" matched no finding on ${shownUrl}. ` +
+            'Check the rule id against the report; the verdict did not depend on it.'
+        );
+      }
       results.push(result);
     } catch (err) {
       const message = redactUrlsIn(err?.message || String(err), hosts);
