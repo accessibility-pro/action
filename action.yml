@@ -93,10 +93,13 @@ inputs:
     default: ''
   accessibility-pro-token:
     description: |
-      Optional API token. Scans count against your plan quota instead of
-      the free tier and are attributed to your account, which is what
-      lets you open the report signed in and generate Copy-as-PR fixes.
-      Get one at https://www.accessibilitypro.app/pricing.
+      Optional API token. Scans count against your plan's CI allowance
+      instead of the free tier and are attributed to your account, which
+      is what lets you open the report signed in and generate Copy-as-PR
+      fixes. Create one under API tokens at
+      https://www.accessibilitypro.app/account#api-tokens and store it as
+      a repository secret. A revoked or mistyped token fails the step
+      rather than falling back to the free tier.
     required: false
     default: ''
   github-token:

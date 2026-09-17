@@ -6,6 +6,27 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.3.1] · 2026-09-17
+
+### Fixed
+- **A rejected token says why.** The step failed with only "The supplied
+  accessibility-pro-token was rejected". It now prints the scanner's
+  reason (not recognised, revoked or malformed) and the link to create a
+  new token.
+
+### Scanner
+These reached every version of the action the day they deployed.
+- **`accessibility-pro-token` can now be created.** The README and the
+  input said a token attributes scans to your plan, but the account page
+  issued none, and the scanner only accepted an hour-long session JWT.
+  Create one under API tokens at
+  https://www.accessibilitypro.app/account#api-tokens and store it as a
+  repository secret.
+- **A token that does not verify fails the step.** The scanner used to
+  drop it and scan on the anonymous free tier with a green build. It now
+  refuses the scan with HTTP 401, so a mistyped, expired or revoked
+  secret shows up at once instead of quietly costing you your plan.
+
 ## [2.3.0] · 2026-09-17
 
 ### Added

@@ -73,6 +73,11 @@ const backend = createServer((req, res) => {
         res.end(JSON.stringify({ detail: 'Monthly CI scan allowance exhausted (1000/1000 on the starter plan). It resets at your next billing cycle. Upgrade at https://www.accessibilitypro.app/pricing' }));
         return;
       }
+      if (scenario.status === 401) {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ detail: 'This accessibility-pro-token was revoked. Create a new one at https://www.accessibilitypro.app/account#api-tokens.' }));
+        return;
+      }
       if (scenario.status === 429) {
         res.writeHead(429, { 'retry-after': '3600', 'content-type': 'application/json' });
         res.end(JSON.stringify({ error: 'Rate limit exceeded', retry_after: 3600 }));
@@ -408,6 +413,15 @@ r = await run({}, { inputs: { url: 'https://example.com' } });
 check('exit 1', r.code === 1);
 check('mentions quota + token remedy', r.stdout.includes('quota exhausted') && r.stdout.includes('accessibility-pro-token'), r.stdout.slice(-500));
 check('no stack trace leaked', !r.stdout.includes('at async'));
+
+console.log("\n[11b] A rejected token fails with the backend's reason");
+scenario = { status: 401, response: (u) => scanResult(u) };
+r = await run({ 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'apt_revokedrevokedrevokedrevokedrevokedrevoked0' }, { inputs: { url: 'https://example.com' } });
+check('exit 1', r.code === 1);
+check('says it was rejected and why', r.stdout.includes('was rejected (HTTP 401)') && r.stdout.includes('was revoked'), r.stdout.slice(-500));
+check('points at the account page', r.stdout.includes('/account#api-tokens'));
+// `::add-mask::` carries the value by design: it is how the runner learns to mask it.
+check('token value never printed', !r.stdout.split('\n').some((l) => !l.startsWith('::add-mask::') && l.includes('apt_revokedrevoked')));
 
 // --------------------------------------------------------------- 12
 console.log('\n[12] Sticky update reuses the existing comment');

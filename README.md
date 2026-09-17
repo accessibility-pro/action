@@ -294,6 +294,26 @@ runner IP.
 
 ## With a token
 
+1. Sign in and open **API tokens** on your
+   [account page](https://www.accessibilitypro.app/account#api-tokens).
+   Name the token and create it. It is shown once, so copy it then.
+2. In your repository, open **Settings → Secrets and variables →
+   Actions** and add a repository secret named
+   `ACCESSIBILITY_PRO_TOKEN` with the token as its value.
+3. Pass it to the Action:
+
+```yaml
+      - uses: accessibility-pro/action@v2
+        with:
+          url: ${{ secrets.STAGING_URL }}
+          accessibility-pro-token: ${{ secrets.ACCESSIBILITY_PRO_TOKEN }}
+```
+
+A token only runs CI scans: it cannot open reports or change billing.
+Revoke it on the same page and the next run that carries it fails with
+the reason, instead of quietly falling back to the free tier. The same
+happens for a token that was mistyped.
+
 Supply `accessibility-pro-token` and scans are attributed to your
 account rather than run anonymously. That means they appear in your
 dashboard and history next to your interactive scans, and they draw on

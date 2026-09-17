@@ -259,9 +259,12 @@ export async function runScan({
     throw new HttpError(safeDetail(res.body), { status: 402 });
   }
   if (res.status === 401 || res.status === 403) {
+    // The backend says why (revoked, not recognised, malformed) and where
+    // to make a new token; a bare "rejected" left the customer guessing.
     throw new HttpError(
-      `The supplied accessibility-pro-token was rejected (HTTP ${res.status}). ` +
-        'Check the secret, or remove it to scan on the free tier.',
+      `The supplied accessibility-pro-token was rejected (HTTP ${res.status}): ` +
+        `${safeDetail(res.body)} ` +
+        'Or remove the input to scan on the free tier.',
       { status: res.status }
     );
   }
