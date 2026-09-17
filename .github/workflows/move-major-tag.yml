@@ -1,0 +1,111 @@
+# Keeps the floating major tag on the newest release.
+#
+# Consumers pin `accessibility-pro/action@v2`. That only delivers a fix if
+# `v2` is moved to the release that carries it, and until 2026-09-17 that
+# was a manual step at the end of PUBLISHING.md: forget it and every
+# consumer silently stays a version behind, with the release page saying
+# otherwise.
+#
+# On a published release `vX.Y.Z` this moves `vX` to the same commit,
+# after checking that:
+#   * the tag is a plain `vX.Y.Z` (not a pre-release or a draft),
+#   * it is the highest `vX.*.*` tag, so a patch for an older line never
+#     drags `vX` backwards,
+#   * `src/main.mjs` at that commit declares the same ACTION_VERSION, so
+#     the tag cannot point at code that announces another version.
+#
+# A new major (`v3.0.0`) creates `v3` and leaves `v2` alone.
+#
+# Run it by hand with `workflow_dispatch` to repair a tag or to check what
+# it would do: `dry_run` (the default) reports without pushing.
+
+name: Move major tag
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to point the major tag at, e.g. v2.3.1'
+        required: true
+      dry_run:
+        description: 'Report only; do not move the tag'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: move-major-tag
+  cancel-in-progress: false
+
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (!github.event.release.prerelease && !github.event.release.draft)
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Move the major tag
+        env:
+          # Through env, never interpolated into the script: a tag name is
+          # user-controlled input.
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          summary() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
+
+          if [[ ! "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            summary "Refused: \`$TAG\` is not a vX.Y.Z release tag."
+            exit 1
+          fi
+          major="v${BASH_REMATCH[1]}"
+          version="${TAG#v}"
+
+          git fetch --force --tags origin
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            summary "Refused: tag \`$TAG\` does not exist."
+            exit 1
+          fi
+          target="$(git rev-list -n 1 "$TAG")"
+
+          newest="$(git tag -l "${major}.*.*" | grep -E "^${major}\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)"
+          if [[ "$newest" != "$TAG" ]]; then
+            summary "Left \`$major\` alone: \`$TAG\` is not the newest ${major} release (\`$newest\` is)."
+            exit 0
+          fi
+
+          declared="$(git show "$target:src/main.mjs" | sed -n "s/^const ACTION_VERSION = '\([^']*\)';.*/\1/p")"
+          if [[ "$declared" != "$version" ]]; then
+            summary "Refused: \`$TAG\` declares ACTION_VERSION \`${declared:-missing}\`, not \`$version\`."
+            exit 1
+          fi
+
+          current="$(git rev-list -n 1 "$major" 2>/dev/null || echo none)"
+          if [[ "$current" == "$target" ]]; then
+            summary "\`$major\` already points at \`$TAG\` (${target:0:7}). Nothing to do."
+            exit 0
+          fi
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            summary "Dry run: would move \`$major\` from ${current:0:7} to \`$TAG\` (${target:0:7})."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$major" "$target" -m "$major"
+          git push --force origin "refs/tags/$major"
+
+          remote="$(git ls-remote origin "refs/tags/${major}^{}" | cut -f1)"
+          if [[ "$remote" != "$target" ]]; then
+            summary "Failed: \`$major\` on the remote is ${remote:0:7}, expected ${target:0:7}."
+            exit 1
+          fi
+          summary "Moved \`$major\` from ${current:0:7} to \`$TAG\` (${target:0:7}). Workflows using @$major get $version on their next run."
