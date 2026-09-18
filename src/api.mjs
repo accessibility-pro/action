@@ -195,6 +195,7 @@ export async function runScan({
   engines,
   ignoreRules = [],
   token,
+  siteHeaders = {},
   oidcToken,
   timeoutMs,
   retries,
@@ -223,6 +224,9 @@ export async function runScan({
   };
   if (engines.length) payload.engines = engines;
   if (ignoreRules.length) payload.ignore_rules = ignoreRules;
+  // Sent to the scanner only; it forwards them to the scanned site's hosts
+  // and nowhere else. Never logged here: the values are masked secrets.
+  if (Object.keys(siteHeaders).length) payload.headers = siteHeaders;
 
   const res = await httpRequestWithRetry(endpoint, {
     method: 'POST',
@@ -252,6 +256,12 @@ export async function runScan({
         'the scanner blocks private and link-local addresses.',
       { status: 400 }
     );
+  }
+  if (res.status === 422) {
+    // The scanner's own reason, which already names the URL: "Blocked by
+    // sign-in: ... pass cf-access-client-id and cf-access-client-secret",
+    // or an unreachable host. Terminal, so it is not retried.
+    throw new HttpError(safeDetail(res.body), { status: 422 });
   }
   if (res.status === 402) {
     // The plan's CI allowance is spent. Distinct from 429, which is the

@@ -49,6 +49,9 @@ const WARNING_TITLES = {
  */
 export const UNREPRESENTATIVE_KINDS = new Set([
   'wall_detected',
+  // The CI endpoint refuses a sign-in wall outright (HTTP 422), so this
+  // only reaches the action from a backend that scanned one anyway.
+  'login_wall',
   'http_blocked',
   'bot_challenge',
   'consent_wall',

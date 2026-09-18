@@ -6,6 +6,32 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.4.0] · 2026-09-17
+
+### Added
+- **`cf-access-client-id` and `cf-access-client-secret`.** Scan a staging
+  site behind Cloudflare Access with a service token stored as repository
+  secrets. Both values are masked, sent only to the scanned site's own
+  hosts and never across a redirect, and not stored. Needs an
+  `accessibility-pro-token` on the Developer plan or above. Setting only
+  one of the two fails the step before anything is sent.
+
+### Fixed
+- **A scan that is refused with a reason prints the reason.** An HTTP 422
+  from the scanner, such as an unreachable host, used to read "Scan
+  request failed: HTTP 422" followed by the detail. It now prints the
+  detail alone.
+
+### Scanner
+- **A sign-in page is no longer graded as your site.** A URL that
+  redirected to Cloudflare Access (or Okta, Microsoft, Google, Auth0,
+  Vercel deployment protection, or the site's own `/login`) was scanned
+  as if it were the page: a staging site scored 79 with four failures,
+  every one of them a property of Cloudflare's sign-in screen. The
+  scanner now stops before grading, stores and counts nothing, and every
+  version of the action fails the step with "Blocked by sign-in" and what
+  to do about it.
+
 ## [2.3.1] · 2026-09-17
 
 ### Fixed

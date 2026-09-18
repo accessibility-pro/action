@@ -30,7 +30,7 @@ import { pullRequestNumber, readEvent, repository, upsertComment } from './githu
 // scanning attributes a finding to the release that produced it. Bump
 // with the CHANGELOG entry; test/e2e.mjs [27] fails when they diverge
 // (v2.1.1 shipped announcing itself as 2.1.0).
-const ACTION_VERSION = '2.3.1';
+const ACTION_VERSION = '2.4.0';
 const WCAG_LEVELS = ['A', 'AA', 'AAA'];
 const COMMENT_MODES = ['sticky', 'new', 'off'];
 
@@ -120,6 +120,23 @@ function readConfig() {
   const token = core.getInput('accessibility-pro-token');
   if (token) core.setSecret(token);
 
+  // A Cloudflare Access service token: both halves or neither. One half
+  // alone cannot get past Access, and sending it would only turn a clear
+  // "blocked by sign-in" into a confusing one.
+  const cfAccessClientId = core.getInput('cf-access-client-id');
+  const cfAccessClientSecret = core.getInput('cf-access-client-secret');
+  if (cfAccessClientId) core.setSecret(cfAccessClientId);
+  if (cfAccessClientSecret) core.setSecret(cfAccessClientSecret);
+  if (Boolean(cfAccessClientId) !== Boolean(cfAccessClientSecret)) {
+    throw new Error(
+      'Set both `cf-access-client-id` and `cf-access-client-secret`, or neither. ' +
+        'A Cloudflare Access service token needs its Client ID and its Client Secret.'
+    );
+  }
+  const siteHeaders = cfAccessClientId
+    ? { 'CF-Access-Client-Id': cfAccessClientId, 'CF-Access-Client-Secret': cfAccessClientSecret }
+    : {};
+
   return {
     urls,
     wcagLevel,
@@ -135,6 +152,7 @@ function readConfig() {
     sarifFile: core.getInput('sarif-file'),
     resultsFile: core.getInput('results-file'),
     token,
+    siteHeaders,
     githubToken: core.getInput('github-token'),
     backendUrl: normaliseOrigin(
       core.getInput('backend-url') || 'https://access-pro-ai-production.up.railway.app',
@@ -263,6 +281,7 @@ async function main() {
         engines: config.engines,
         ignoreRules: config.ignoreRules,
         token: config.token,
+        siteHeaders: config.siteHeaders,
         oidcToken,
         timeoutMs: config.timeoutMs,
         retries: config.retries,

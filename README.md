@@ -183,6 +183,34 @@ jobs:
 A scheduled run has no pull request to comment on, so the results go to
 the job summary and the workflow's own failure notification.
 
+### Scan a staging site behind Cloudflare Access
+
+A site behind Cloudflare Access sends the scanner to its sign-in page.
+Give the scanner a service token instead:
+
+1. In Cloudflare Zero Trust, open **Access, Service Auth** and create a
+   service token. Copy its Client ID and Client Secret.
+2. In the Access application for your staging site, add a policy with
+   the action **Service Auth** that includes that token.
+3. Store the two values as repository secrets, `CF_ACCESS_CLIENT_ID` and
+   `CF_ACCESS_CLIENT_SECRET`, and pass them:
+
+```yaml
+      - uses: accessibility-pro/action@v2
+        with:
+          url: https://staging.example.com
+          accessibility-pro-token: ${{ secrets.ACCESSIBILITY_PRO_TOKEN }}
+          cf-access-client-id: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          cf-access-client-secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+```
+
+The values are masked in the log and sent as `CF-Access-Client-Id` and
+`CF-Access-Client-Secret` only to the scanned site's own hosts, never to
+a third-party host on the page and never across a redirect. They are not
+stored. Scanning behind a login needs an `accessibility-pro-token` on the
+Developer plan or above. If Access still refuses the token, the step fails
+with "Blocked by sign-in" and says what to check.
+
 ## Inputs
 
 | Input | Default | Description |
@@ -200,6 +228,8 @@ the job summary and the workflow's own failure notification.
 | `sarif-file` | `''` | Path to write a SARIF 2.1.0 report to. |
 | `results-file` | `''` | Path to write the raw scan payload (JSON) to. |
 | `accessibility-pro-token` | `''` | API token. Scans are attributed to your account, appear in your dashboard, and draw on your plan's CI allowance instead of the free tier. |
+| `cf-access-client-id` | `''` | Client ID of a Cloudflare Access service token, for a site behind Access. Use with `cf-access-client-secret`; needs a token on Developer or above. |
+| `cf-access-client-secret` | `''` | Client Secret of the same service token. |
 | `github-token` | `${{ github.token }}` | Token used to post the comment. |
 | `timeout-minutes` | `15` | Per-attempt budget for one scan request (1 to 60). |
 | `retries` | `1` | Retries for transient backend or network failures (0 to 3). |
@@ -279,6 +309,13 @@ saying so is more useful than a number that looks authoritative.
 
 Set `fail-on-unrepresentative: false` to treat these as advisory. They
 are always shown either way.
+
+A sign-in page is different: nothing on it describes your site, so it is
+never graded. When the URL redirects to a login (Cloudflare Access, Okta,
+Microsoft, Google, Auth0, Vercel deployment protection, your own
+`/login`) or answers HTTP 401, the step fails with "Blocked by sign-in",
+nothing is stored and no scan is counted. See
+[Scan a staging site behind Cloudflare Access](#scan-a-staging-site-behind-cloudflare-access).
 
 ## Free tier
 

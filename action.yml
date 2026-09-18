@@ -102,6 +102,19 @@ inputs:
       rather than falling back to the free tier.
     required: false
     default: ''
+  cf-access-client-id:
+    description: |
+      Client ID of a Cloudflare Access service token, for a site behind
+      Cloudflare Access (typically staging). Use with
+      `cf-access-client-secret`, both stored as repository secrets. Sent
+      only to the scanned site's hosts, never across a redirect. Needs an
+      `accessibility-pro-token` on the Developer plan or above.
+    required: false
+    default: ''
+  cf-access-client-secret:
+    description: 'Client Secret of the same Cloudflare Access service token.'
+    required: false
+    default: ''
   github-token:
     description: 'Token used to post the pull-request comment.'
     required: false

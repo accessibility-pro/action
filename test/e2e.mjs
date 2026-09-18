@@ -73,6 +73,11 @@ const backend = createServer((req, res) => {
         res.end(JSON.stringify({ detail: 'Monthly CI scan allowance exhausted (1000/1000 on the starter plan). It resets at your next billing cycle. Upgrade at https://www.accessibilitypro.app/pricing' }));
         return;
       }
+      if (scenario.status === 422) {
+        res.writeHead(422, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ detail: `Blocked by sign-in: ${parsed.url} did not show its page to the scanner (Cloudflare Access sign-in page). Nothing was graded.` }));
+        return;
+      }
       if (scenario.status === 401) {
         res.writeHead(401, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ detail: 'This accessibility-pro-token was revoked. Create a new one at https://www.accessibilitypro.app/account#api-tokens.' }));
@@ -807,6 +812,49 @@ captured.comments = [];
 scenario = { response: (u) => scanResult(u) };
 await run({}, { inputs: { url: 'https://example.com' } });
 check('no ignore-rules input sends no ignore_rules field', !('ignore_rules' in captured.scanBodies.at(-1).payload));
+
+console.log('\n[38] A Cloudflare Access service token reaches the backend and nowhere else');
+scenario = { response: (u) => scanResult(u) };
+{
+  // Not credential-shaped on purpose: the repository's secret scan reads
+  // `const secret = '<entropy>'` in a diff as a leak, and it is right to.
+  const id = 'fixture-client-id.access';
+  const clientSecretFixture = 'fixture-client-secret-value';
+  const before = captured.scanBodies.length;
+  r = await run(
+    { 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'apt_e2etokene2etokene2etokene2etokene2etokene2e0', 'INPUT_CF-ACCESS-CLIENT-ID': id, 'INPUT_CF-ACCESS-CLIENT-SECRET': clientSecretFixture },
+    { inputs: { url: 'https://staging.example.com/' } }
+  );
+  const sent = captured.scanBodies.at(-1);
+  check('one scan request', captured.scanBodies.length === before + 1);
+  check('headers sent in the payload', JSON.stringify(sent.payload.headers) === JSON.stringify({ 'CF-Access-Client-Id': id, 'CF-Access-Client-Secret': clientSecretFixture }), JSON.stringify(sent.payload.headers));
+  check('not sent as request headers to the backend', !Object.keys(sent.headers).some((k) => k.toLowerCase().startsWith('cf-access')));
+  const masked = r.stdout.split('\n').filter((l) => l.startsWith('::add-mask::'));
+  check('both values masked', masked.includes(`::add-mask::${id}`) && masked.includes(`::add-mask::${clientSecretFixture}`), masked.join(' | '));
+  const leaked = r.stdout.split('\n').filter((l) => !l.startsWith('::add-mask::') && (l.includes(clientSecretFixture) || l.includes(id)));
+  check('neither value printed anywhere else', leaked.length === 0, leaked.join('\n'));
+  check('exit 0', r.code === 0, r.stdout.slice(-400));
+}
+
+console.log('\n[39] Half a service token fails before anything is sent');
+{
+  const before = captured.scanBodies.length;
+  r = await run({ 'INPUT_CF-ACCESS-CLIENT-ID': 'only-the-id.access' }, { inputs: { url: 'https://staging.example.com/' } });
+  check('exit 1', r.code === 1);
+  check('says both are needed', r.stdout.includes('Set both `cf-access-client-id` and `cf-access-client-secret`'), r.stdout.slice(-400));
+  check('no scan request made', captured.scanBodies.length === before);
+}
+scenario = { response: (u) => scanResult(u) };
+await run({}, { inputs: { url: 'https://example.com' } });
+check('no service token sends no headers field', !('headers' in captured.scanBodies.at(-1).payload));
+
+console.log('\n[40] Blocked by sign-in fails the step with the scanner\'s reason');
+scenario = { status: 422, response: (u) => scanResult(u) };
+r = await run({}, { inputs: { url: 'https://staging.example.com/' } });
+check('exit 1', r.code === 1);
+check('prints the reason', r.stdout.includes('Blocked by sign-in: https://staging.example.com/ did not show its page'), r.stdout.slice(-600));
+check('not wrapped as a generic HTTP failure', !r.stdout.includes('Scan request failed: HTTP 422'));
+check('not retried', (r.stdout.match(/Retrying in 30s/g) || []).length === 0);
 
 backend.close();
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
