@@ -6,6 +6,50 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.4.1] · 2026-09-18
+
+### Added
+- **Four scan notices now print their real heading.** `time_budget`,
+  `language_variants_sampled`, `probe_budget_adapted` and the new
+  `consent_not_dismissed` rendered as a generic "Scan notice" in the job
+  summary and the PR comment, while the report page named them. None of
+  them fails a build; they explain a number that moved.
+
+### Scanner
+- **A site's own language is no longer scanned as a translation.** A URL
+  that carries its locale in the file name rather than a directory
+  (`/it.html`, `/en.html`, common on Adobe Experience Manager and on
+  government sites) was unreadable to the crawler, so the site's own
+  pages were sampled three per language as if they were translations of
+  something else. trenitalia.com audited 4 Italian pages out of 30 and
+  reported 2,489 as skipped. The language now comes from the page's own
+  `<html lang>`, region subtags are validated against ISO 3166 so a
+  section like `/uk-news/` is not read as Ukrainian, and a crawled page
+  that declares the site's language retires a wrong guess for the rest
+  of the scan.
+- **A cookie banner is dismissed in far more languages, and the result
+  is checked.** Dismissal now reads the class and id of each control
+  rather than only its words, which answers in languages no phrase list
+  carries; it reaches into the iframe that Sourcepoint and other
+  consent vendors render their dialog in; it follows the second panel
+  that hides the refusal behind "more options"; it repeats while a
+  banner is still up, because some sites stack two; and it treats a
+  refusal that costs money as an acceptance, so the scan stays on the
+  page it was asked to audit. Every click is verified against the
+  viewport the dialog covered, so a control that answers and leaves the
+  dialog standing is no longer reported as a dismissal. Verified live
+  across 26 languages including Arabic, Hebrew, Greek, Hungarian,
+  Croatian, Polish, Swedish and Finnish.
+- **An Experience Manager page is no longer reported as a consent
+  wall.** `cmp-container`, the class Adobe's Core Components give every
+  layout container, sat in the scanner's list of consent-manager roots,
+  so the page's own wrapper measured as a full-screen dialog. Every page
+  of an affected scan carried "this scan may not reflect the real page"
+  with the banner correctly dismissed — and with `fail-on-unrepresentative`
+  set, that failed the build.
+- **A sign-in page is caught on multi-page scans too.** The check had
+  the URL it asked for on the CI path only.
+
 ## [2.4.0] · 2026-09-17
 
 ### Added

@@ -34,6 +34,13 @@ const WARNING_TITLES = {
   enrichment_failed: 'Confidence scoring failed',
   claude_unavailable: 'AI rationale and Copy-as-PR were unavailable',
   llm_partial_fallback: 'Some rationales fell back to rule templates',
+  // Trustworthy kinds, so they never gate a build — but a run that
+  // says "Scan notice" three times tells a reader nothing. These four
+  // are the ones the report has always titled and the action did not.
+  time_budget: 'The scan reached its time budget',
+  language_variants_sampled: 'Other language versions were sampled, not scanned in full',
+  probe_budget_adapted: 'Keyboard probing was reduced on slow pages',
+  consent_not_dismissed: 'A cookie banner stayed up on some pages',
 };
 
 /**
