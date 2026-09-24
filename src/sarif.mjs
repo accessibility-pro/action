@@ -37,6 +37,25 @@ export function bucketKeyFor(issue) {
   return `${ruleClass}:${wcag}`;
 }
 
+/**
+ * Code scanning rejects any location that is not a path in the
+ * repository ("unrecognized SARIF location URI scheme https"), so a
+ * scan with even one finding failed the upload. The page's host and
+ * path stand in as a repository-relative path; the query string is
+ * dropped because it can carry secrets. The full address stays in the
+ * result's `page_url` property.
+ */
+export function pageArtifactUri(url) {
+  try {
+    const u = new URL(url);
+    // A colon in the first segment would parse as a scheme
+    // (localhost:3000), and brackets (IPv6) are not legal in a path.
+    return (u.host.replace(/[:[\]]/g, '_') + u.pathname).replace(/\/+$/, '');
+  } catch {
+    return 'page';
+  }
+}
+
 function levelFor(severity) {
   return SEVERITY_TO_LEVEL[String(severity || '').toLowerCase()] ?? 'note';
 }
@@ -79,6 +98,7 @@ function runForScan(scan, version) {
     }
 
     const selector = issue.location || (issue.occurrence_selectors || [])[0] || '';
+    const pageUrl = issue.source_url || scan.url || '';
     results.push({
       ruleId,
       level: levelFor(issue.severity),
@@ -88,7 +108,7 @@ function runForScan(scan, version) {
       locations: [
         {
           physicalLocation: {
-            artifactLocation: { uri: issue.source_url || scan.url || '' },
+            artifactLocation: { uri: pageArtifactUri(pageUrl), uriBaseId: '%SRCROOT%' },
             // Code scanning requires a region on every physical
             // location. There is no source file behind a URL scan, so
             // line 1 stands in for "this page".
@@ -116,6 +136,7 @@ function runForScan(scan, version) {
           }
         : {}),
       properties: {
+        page_url: pageUrl,
         wcag: issue.wcag || '',
         severity: issue.severity || '',
         impact_score: issue.impact_score,

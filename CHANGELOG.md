@@ -6,6 +6,21 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.4.4] · 2026-09-24
+
+### Fixed
+- **Uploading the SARIF file to code scanning no longer fails when there
+  is a finding.** Since 2.0.0 each result's location was the scanned
+  page's web address. Code scanning accepts only paths in the
+  repository, so `github/codeql-action/upload-sarif` failed with
+  "unrecognized SARIF location URI scheme" whenever a scan had at least
+  one finding. A scan with no findings uploaded fine, which is why our
+  own CI stayed green until 2.4.3. The location is now the page's host
+  and path as a repository-relative path, for example
+  `www.example.com/pricing`, with any port written as `_3000` and the
+  query string left out. The full address moves to the result's
+  `page_url` property. Fingerprints are unchanged.
+
 ## [2.4.3] · 2026-09-24
 
 ### Fixed

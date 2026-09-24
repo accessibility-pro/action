@@ -409,6 +409,12 @@ check('rules deduped', sarif.runs[0].tool.driver.rules.length === 2);
 check('critical maps to error', sarif.runs[0].results[0].level === 'error');
 check('fingerprint uses dedup_key', sarif.runs[0].results[0].partialFingerprints.fingerprint === 'color-contrast:1.4.3:.btn');
 check('region present for code scanning', sarif.runs[0].results[0].locations[0].physicalLocation.region.startLine === 1);
+// Code scanning refused "https" locations, failing every upload that
+// had a finding (v2.4.3 CI). Each location must be repository-relative.
+const sarifUris = sarif.runs[0].results.map((res) => res.locations[0].physicalLocation.artifactLocation.uri);
+check('every location is repository-relative', sarifUris.length > 0 && sarifUris.every((u) => !/^[a-z][a-z0-9+.-]*:/i.test(u)), JSON.stringify(sarifUris));
+check('location is the page host and path', sarifUris[0] === 'example.com', sarifUris[0]);
+check('full address kept as page_url', sarif.runs[0].results[0].properties.page_url.startsWith('https://example.com'), sarif.runs[0].results[0].properties.page_url);
 check('sarif-file output set', r.outputs['sarif-file'].endsWith('a11y.sarif'));
 check('results file written', existsSync(join(outDir, 'raw.json')));
 
