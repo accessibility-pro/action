@@ -6,6 +6,28 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.4.2] · 2026-09-24
+
+### Fixed
+- **A saved dismissal is no longer reported as an `ignore-rules` match.**
+  Since 2026-09-20 the scanner also applies the dismissals saved on your
+  account for the scanned site (`POST /api/account/dismissals`) to runs
+  that carry `accessibility-pro-token`. The verdict was always right, but
+  the comment, the log and the SARIF suppression said every skipped
+  finding "matched ignore-rules", including on workflows that set no
+  `ignore-rules` at all. Each skipped finding is now labelled by where
+  its acknowledgement came from: `ignored via ignore-rules: <entry>` or
+  `saved dismissal: <entry>`, with a separate count for each in the
+  comment and in the log. SARIF results carry `gate_ignored_source`
+  (`ignore-rules` or `saved`).
+
+### Added
+- **"Your saved dismissals could not be applied"** heading for the
+  scanner's `dismissals_unavailable` notice, which used to print as a
+  generic "Scan notice". It explains a red build on a finding you had
+  already dismissed; it does not fail a build on its own, because the
+  gate it describes is stricter than you asked for, never looser.
+
 ## [2.4.1] · 2026-09-18
 
 ### Added

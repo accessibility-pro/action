@@ -121,6 +121,7 @@ function scanResult(url, overrides = {}) {
     ...('gate_ignored' in overrides
       ? { gate_ignored: overrides.gate_ignored, ignore_rules_unmatched: overrides.ignore_rules_unmatched ?? [] }
       : {}),
+    ...('dismissals_applied' in overrides ? { dismissals_applied: overrides.dismissals_applied } : {}),
     truncation: overrides.truncation ?? undefined,
     summary: {
       total_issues: (overrides.issues ?? []).length,
@@ -855,6 +856,84 @@ check('exit 1', r.code === 1);
 check('prints the reason', r.stdout.includes('Blocked by sign-in: https://staging.example.com/ did not show its page'), r.stdout.slice(-600));
 check('not wrapped as a generic HTTP failure', !r.stdout.includes('Scan request failed: HTTP 422'));
 check('not retried', (r.stdout.match(/Retrying in 30s/g) || []).length === 0);
+
+console.log('\n[41] Saved dismissals are told apart from ignore-rules');
+{
+  const CONTRAST_IGNORED = { ...RICH_ISSUE, gate_ignored: 'color-contrast' };
+  // No ignore-rules input: the only acknowledgement is a saved dismissal.
+  scenario = {
+    response: (u) =>
+      scanResult(u, { passed: true, score: 89, issues: [IGNORED_ISSUE], gate_ignored: 1, dismissals_applied: 2 }),
+  };
+  captured.comments = [];
+  const dir41 = mkdtempSync(join(tmpdir(), 'apscan-saved-'));
+  r = await run(
+    { 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'apt_e2etokene2etokene2etokene2etokene2etokene2e0', 'INPUT_SARIF-FILE': join(dir41, 'a11y.sarif') },
+    { inputs: { url: 'https://example.com/kontakti/' } }
+  );
+  const body41 = captured.comments[0]?.body || '';
+  check('exit 0', r.code === 0, `code=${r.code}\n${r.stderr.slice(-400)}`);
+  check('no ignore_rules field sent', !('ignore_rules' in captured.scanBodies.at(-1).payload));
+  check('comment names the saved dismissal', body41.includes('1 finding matched a dismissal saved on your Accessibility Pro account and does not gate the build'), body41.slice(0, 900));
+  check('comment does not claim ignore-rules', !body41.includes('ignore-rules'), body41.slice(0, 900));
+  check('chip says saved dismissal', body41.includes('saved dismissal: ibm-input_checkboxes_grouped'));
+  check('log names the applied dismissals', r.stdout.includes('2 dismissals saved on your account applied to this site; 1 finding matched'), r.stdout.slice(0, 900));
+  check('log does not claim ignore-rules', !r.stdout.includes('through ignore-rules'));
+  check('dismissed finding is not annotated', !/::(warning|error) title=WCAG 1\.3\.1/.test(r.stdout));
+  const res41 = JSON.parse(readFileSync(join(dir41, 'a11y.sarif'), 'utf8')).runs[0].results[0];
+  check('SARIF suppression says saved dismissal', res41?.suppressions?.[0]?.justification === 'saved dismissal: ibm-input_checkboxes_grouped', JSON.stringify(res41?.suppressions));
+  check('SARIF property records the source', res41?.properties?.gate_ignored_source === 'saved', JSON.stringify(res41?.properties));
+
+  // Both at once: each finding keeps its own source.
+  scenario = {
+    response: (u) =>
+      scanResult(u, { passed: true, score: 80, issues: [CONTRAST_IGNORED, IGNORED_ISSUE], gate_ignored: 2, dismissals_applied: 1 }),
+  };
+  captured.comments = [];
+  const dir41b = mkdtempSync(join(tmpdir(), 'apscan-mixed-'));
+  r = await run(
+    { 'INPUT_IGNORE-RULES': 'color-contrast', 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'apt_e2etokene2etokene2etokene2etokene2etokene2e0', 'INPUT_SARIF-FILE': join(dir41b, 'a11y.sarif') },
+    { inputs: { url: 'https://example.com/' } }
+  );
+  const mixed = captured.comments[0]?.body || '';
+  check('mixed: one counted as ignore-rules', mixed.includes('1 finding matched ignore-rules and does not gate the build'), mixed.slice(0, 1200));
+  check('mixed: one counted as saved', mixed.includes('1 finding matched a dismissal saved on your Accessibility Pro account'));
+  check('mixed: ignore-rules chip on the workflow entry', mixed.includes('ignored via ignore-rules: color-contrast'));
+  check('mixed: saved chip on the stored entry', mixed.includes('saved dismissal: ibm-input_checkboxes_grouped'));
+  const mixedSarif = JSON.parse(readFileSync(join(dir41b, 'a11y.sarif'), 'utf8')).runs[0].results;
+  const justifications = mixedSarif.map((x) => x.suppressions?.[0]?.justification).sort();
+  check('mixed: SARIF justifies each by its source', JSON.stringify(justifications) === JSON.stringify(['ignore-rules: color-contrast', 'saved dismissal: ibm-input_checkboxes_grouped']), JSON.stringify(justifications));
+
+  // An older backend that never sends dismissals_applied reads exactly as before.
+  scenario = {
+    response: (u) => scanResult(u, { passed: true, issues: [CONTRAST_IGNORED], gate_ignored: 1 }),
+  };
+  captured.comments = [];
+  await run({ 'INPUT_IGNORE-RULES': 'color-contrast' }, { inputs: { url: 'https://example.com/' } });
+  const legacy = captured.comments[0]?.body || '';
+  check('older backend: still ignore-rules', legacy.includes('1 finding matched ignore-rules') && !legacy.includes('saved'), legacy.slice(0, 900));
+}
+
+console.log('\n[42] Saved dismissals that could not be read get a real heading and do not fail the build');
+scenario = {
+  response: (u) =>
+    scanResult(u, {
+      passed: true,
+      warnings: [{
+        kind: 'dismissals_unavailable',
+        severity: 'warning',
+        message: 'Your saved dismissals for this site could not be read, so none were applied to this run.',
+      }],
+    }),
+};
+captured.comments = [];
+r = await run({ 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'apt_e2etokene2etokene2etokene2etokene2etokene2e0' }, { inputs: { url: 'https://example.com/' } });
+{
+  const body42 = captured.comments[0]?.body || '';
+  check('titled, not a generic notice', body42.includes('**Your saved dismissals could not be applied**') && !body42.includes('Scan notice'), body42.slice(0, 900));
+  check('exit 0: a stricter gate is not an unrepresentative scan', r.code === 0, r.stdout.slice(-400));
+  check('not counted as a blocking warning', r.outputs['warnings-count'] === '0', JSON.stringify(r.outputs['warnings-count']));
+}
 
 backend.close();
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

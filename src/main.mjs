@@ -14,6 +14,7 @@ import { dirname, resolve } from 'node:path';
 import * as core from './core.mjs';
 import { mintOidcToken, resolveGate, runScan } from './api.mjs';
 import {
+  labelIgnoredSources,
   quotaLine,
   redactUrl,
   redactUrlsIn,
@@ -30,7 +31,7 @@ import { pullRequestNumber, readEvent, repository, upsertComment } from './githu
 // scanning attributes a finding to the release that produced it. Bump
 // with the CHANGELOG entry; test/e2e.mjs [27] fails when they diverge
 // (v2.1.1 shipped announcing itself as 2.1.0).
-const ACTION_VERSION = '2.4.1';
+const ACTION_VERSION = '2.4.2';
 const WCAG_LEVELS = ['A', 'AA', 'AAA'];
 const COMMENT_MODES = ['sticky', 'new', 'off'];
 
@@ -286,7 +287,7 @@ async function main() {
         timeoutMs: config.timeoutMs,
         retries: config.retries,
       });
-      const result = redactUrlsIn(scanned, hosts);
+      const result = labelIgnoredSources(redactUrlsIn(scanned, hosts), config.ignoreRules);
       const stats = summarise(result);
       if (!stats.hasBackendVerdict) {
         throw new Error(
@@ -308,6 +309,14 @@ async function main() {
         core.info(
           `${stats.gateIgnored} finding${stats.gateIgnored === 1 ? '' : 's'} acknowledged ` +
             'through ignore-rules: shown in the report, not gating the build.'
+        );
+      }
+      if (stats.dismissalsApplied > 0 || stats.gateDismissed > 0) {
+        core.info(
+          `${stats.dismissalsApplied} dismissal${stats.dismissalsApplied === 1 ? '' : 's'} ` +
+            `saved on your account applied to this site; ${stats.gateDismissed} ` +
+            `finding${stats.gateDismissed === 1 ? '' : 's'} matched: shown in the report, ` +
+            'not gating the build.'
         );
       }
       // A typo in ignore-rules must not look like a fix.

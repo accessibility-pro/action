@@ -147,6 +147,14 @@ build. An entry that matches nothing is named in the comment and warned
 in the log, so a typo cannot pass a build. This is the fix for "one
 reviewed finding, or drop the whole engine".
 
+Decisions you want to keep across every workflow can be saved on your
+account instead, with `POST /api/account/dismissals` (same entry format,
+keyed on the site's host). Runs that carry `accessibility-pro-token`
+apply them on top of `ignore-rules`, and the comment labels each skipped
+finding by its source: `ignored via ignore-rules` or `saved dismissal`.
+If the saved list cannot be read, the run says so and applies none, so
+the gate is stricter, never looser.
+
 ### Use the results in later steps
 
 ```yaml

@@ -41,6 +41,10 @@ const WARNING_TITLES = {
   language_variants_sampled: 'Other language versions were sampled, not scanned in full',
   probe_budget_adapted: 'Keyboard probing was reduced on slow pages',
   consent_not_dismissed: 'A cookie banner stayed up on some pages',
+  // The gate is stricter than the owner asked for, never looser, so this
+  // is not an unrepresentative scan; it explains a red build on a
+  // finding someone already dismissed.
+  dismissals_unavailable: 'Your saved dismissals could not be applied',
 };
 
 /**
@@ -224,6 +228,44 @@ export function reportUrlFor(stats, reportDomain) {
   return `${reportDomain}/report/${stats.id}?s=${encodeURIComponent(stats.shareToken)}`;
 }
 
+/**
+ * Say where each gate-skipped finding's acknowledgement came from.
+ *
+ * Since 2026-09-20 the backend also applies the dismissals an account
+ * saved for the scanned site (`POST /api/account/dismissals`, on runs
+ * that carry `accessibility-pro-token`), and stamps them exactly
+ * like `ignore-rules` matches (`gate_ignored` = the matching entry).
+ * The workflow's own entries are tried first, so a stamp equal to one of
+ * them is the workflow's; any other stamp is a saved dismissal. Without
+ * this, a workflow with no `ignore-rules` at all was told its findings
+ * "matched ignore-rules".
+ *
+ * Mutates `result`: tags each stamped issue with `gate_ignored_source`
+ * and records the split of the backend's `gate_ignored` total.
+ */
+export function labelIgnoredSources(result, ignoreRules = []) {
+  if (!result) return result;
+  const own = new Set((ignoreRules || []).map((entry) => String(entry).trim()));
+  let savedSeen = 0;
+  for (const issue of result.issues || []) {
+    if (!issue?.gate_ignored) continue;
+    const mine = own.has(String(issue.gate_ignored).trim());
+    issue.gate_ignored_source = mine ? 'ignore-rules' : 'saved';
+    if (!mine) savedSeen += 1;
+  }
+  // The total is the backend's; the issue list can be truncated, so the
+  // split is only inferred where it has to be. No workflow entries means
+  // every acknowledgement was a saved dismissal, and no saved dismissals
+  // applied means every one was the workflow's.
+  const total = Number(result.gate_ignored || 0);
+  let saved;
+  if (own.size === 0) saved = total;
+  else if (!Number(result.dismissals_applied || 0)) saved = 0;
+  else saved = Math.min(total, savedSeen);
+  result.gate_ignored_sources = { ignore_rules: total - saved, saved };
+  return result;
+}
+
 /** Aggregate every field the outputs and the gate need from one scan. */
 export function summarise(result) {
   const counts = severityCounts(result);
@@ -254,7 +296,13 @@ export function summarise(result) {
     warnings,
     blockingWarnings: unrepresentativeWarnings(warnings),
     gateExcluded: Number(result?.gate_excluded_framework_managed || 0),
-    gateIgnored: Number(result?.gate_ignored || 0),
+    // Split by source when `labelIgnoredSources` ran; a result it never
+    // saw keeps the pre-2.4.2 reading, all of it `ignore-rules`.
+    gateIgnored: Number(
+      result?.gate_ignored_sources?.ignore_rules ?? result?.gate_ignored ?? 0
+    ),
+    gateDismissed: Number(result?.gate_ignored_sources?.saved ?? 0),
+    dismissalsApplied: Number(result?.dismissals_applied || 0),
     ignoreUnmatched: Array.isArray(result?.ignore_rules_unmatched)
       ? result.ignore_rules_unmatched.map(String)
       : [],
@@ -338,7 +386,11 @@ function issueChips(issue) {
     );
   }
   if (issue.gate_ignored) {
-    chips.push(`ignored via ignore-rules: ${md(issue.gate_ignored)}`);
+    chips.push(
+      issue.gate_ignored_source === 'saved'
+        ? `saved dismissal: ${md(issue.gate_ignored)}`
+        : `ignored via ignore-rules: ${md(issue.gate_ignored)}`
+    );
   }
   return chips.join(' · ');
 }
@@ -475,6 +527,15 @@ export function renderScanSection(
     notes.push(
       `${stats.gateIgnored} finding${one ? '' : 's'} matched ignore-rules and ` +
         `${one ? 'does' : 'do'} not gate the build. ${one ? 'It' : 'They'} still ` +
+        `count${one ? 's' : ''} in the report and the score.`
+    );
+  }
+  if (stats.gateDismissed > 0) {
+    const one = stats.gateDismissed === 1;
+    notes.push(
+      `${stats.gateDismissed} finding${one ? '' : 's'} matched a dismissal saved on your ` +
+        `Accessibility Pro account and ${one ? 'does' : 'do'} not gate the build. ` +
+        `${one ? 'It' : 'They'} still ` +
         `count${one ? 's' : ''} in the report and the score.`
     );
   }

@@ -105,7 +105,13 @@ function runForScan(scan, version) {
       ...(issue.gate_ignored
         ? {
             suppressions: [
-              { kind: 'external', justification: `ignore-rules: ${issue.gate_ignored}` },
+              {
+                kind: 'external',
+                justification:
+                  issue.gate_ignored_source === 'saved'
+                    ? `saved dismissal: ${issue.gate_ignored}`
+                    : `ignore-rules: ${issue.gate_ignored}`,
+              },
             ],
           }
         : {}),
@@ -118,6 +124,7 @@ function runForScan(scan, version) {
         occurrences: issue.occurrences ?? 1,
         framework_managed: issue.framework_managed || '',
         gate_ignored: issue.gate_ignored || '',
+        gate_ignored_source: issue.gate_ignored ? issue.gate_ignored_source || 'ignore-rules' : '',
       },
     });
   }
