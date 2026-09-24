@@ -6,6 +6,16 @@ follow [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.4.3] · 2026-09-24
+
+### Fixed
+- **The action's description says what the comment contains.** It read
+  "one sticky comment with sandbox-validated Copy-as-PR fixes", but the
+  comment links to the hosted report, where Copy-as-PR fixes are
+  generated for a signed-in account on the Developer plan or above. It
+  now reads "one sticky comment linking to verified code fixes". No
+  change to inputs, outputs, the comment or the SARIF.
+
 ## [2.4.2] · 2026-09-24
 
 ### Fixed

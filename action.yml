@@ -1,5 +1,5 @@
 name: 'Accessibility Pro Scan'
-description: 'WCAG 2.2 accessibility gate for pull requests. Five engines, live-DOM verification, one sticky comment with sandbox-validated Copy-as-PR fixes.'
+description: 'WCAG 2.2 accessibility gate for pull requests. Five engines, live-DOM verification, one sticky comment linking to verified code fixes.'
 author: 'Accessibility Pro'
 branding:
   icon: 'shield'
