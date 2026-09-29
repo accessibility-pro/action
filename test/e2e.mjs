@@ -897,7 +897,7 @@ console.log('\n[41] Saved dismissals are told apart from ignore-rules');
   };
   captured.comments = [];
   const dir41b = mkdtempSync(join(tmpdir(), 'apscan-mixed-'));
-  r = await run(
+  await run(
     { 'INPUT_IGNORE-RULES': 'color-contrast', 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'apt_e2etokene2etokene2etokene2etokene2etokene2e0', 'INPUT_SARIF-FILE': join(dir41b, 'a11y.sarif') },
     { inputs: { url: 'https://example.com/' } }
   );

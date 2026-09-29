@@ -85,7 +85,7 @@ follow [SemVer](https://semver.org).
   page it was asked to audit. Every click is verified against the
   viewport the dialog covered, so a control that answers and leaves the
   dialog standing is no longer reported as a dismissal. Verified live
-  across 26 languages including Arabic, Hebrew, Greek, Hungarian,
+  across 26 languages including Arabic, Greek, Hungarian,
   Croatian, Polish, Swedish and Finnish.
 - **An Experience Manager page is no longer reported as a consent
   wall.** `cmp-container`, the class Adobe's Core Components give every
