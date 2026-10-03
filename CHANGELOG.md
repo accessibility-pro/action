@@ -4,7 +4,21 @@ All notable changes to the GitHub Action ship here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [SemVer](https://semver.org).
 
-## [Unreleased]
+## [2.5.0] · 2026-10-03
+
+### Added
+- **`ai` input.** `ai: false` keeps the scan away from every AI provider:
+  no page content is sent to a model, and only the plain-language
+  explanations are skipped. The comment titles the notice "AI was not
+  used for this scan" and it never fails the build. An account with AI
+  switched off on its Account page gets no AI whatever the input says.
+  A scan sent with `cf-access-client-id` / `cf-access-client-secret` is
+  a signed-in scan and uses no AI unless the account opted in on its
+  Account page.
+- **`read-only` input.** A scan that uses a Cloudflare Access service
+  token is read-only: the scanner blocks every request that could
+  change data and skips the form error check. `read-only: false`
+  switches that off for a test site. Default `true`.
 
 ## [2.4.4] · 2026-09-24
 

@@ -194,8 +194,10 @@ export async function runScan({
   gate,
   engines,
   ignoreRules = [],
+  ai = true,
   token,
   siteHeaders = {},
+  readOnly = true,
   oidcToken,
   timeoutMs,
   retries,
@@ -224,9 +226,13 @@ export async function runScan({
   };
   if (engines.length) payload.engines = engines;
   if (ignoreRules.length) payload.ignore_rules = ignoreRules;
+  // Only ever sent as false: AI on is the backend's default, and an
+  // older backend that does not know the field ignores it.
+  if (ai === false) payload.ai = false;
   // Sent to the scanner only; it forwards them to the scanned site's hosts
   // and nowhere else. Never logged here: the values are masked secrets.
   if (Object.keys(siteHeaders).length) payload.headers = siteHeaders;
+  if (readOnly === false) payload.read_only = false;
 
   const res = await httpRequestWithRetry(endpoint, {
     method: 'POST',

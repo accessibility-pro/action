@@ -230,6 +230,7 @@ with "Blocked by sign-in" and says what to check.
 | `fail-on-unrepresentative` | `true` | Fail when the scanner could not see the real page. See below. |
 | `ignore-rules` | `''` | Reviewed findings that must not gate the build, one rule id per line, optionally `@` a URL or selector fragment. See below. |
 | `engines` | *(all five)* | Comma-separated subset of `axe-core`, `lighthouse`, `pa11y`, `ibm-equal-access`, `arc-style`. |
+| `ai` | `true` | From 2.5.0. `false` keeps the scan away from every AI provider: no page content is sent to a model, only the plain-language explanations are skipped, and the comment says "AI off (scan request)". An account with AI off on its Account page gets no AI whatever this says, and a scan with the `cf-access-*` inputs uses AI only if the account opted in to AI on signed-in scans. |
 | `comment` | `sticky` | `sticky` updates one comment in place, `new` adds one per run, `off` disables it. |
 | `top-issues` | `5` | Findings listed inline, ranked by impact (1 to 25). |
 | `annotations` | `true` | Emit build-failing findings as workflow annotations. |
@@ -238,6 +239,7 @@ with "Blocked by sign-in" and says what to check.
 | `accessibility-pro-token` | `''` | API token. Scans are attributed to your account, appear in your dashboard, and draw on your plan's CI allowance instead of the free tier. |
 | `cf-access-client-id` | `''` | Client ID of a Cloudflare Access service token, for a site behind Access. Use with `cf-access-client-secret`; needs a token on Developer or above. |
 | `cf-access-client-secret` | `''` | Client Secret of the same service token. |
+| `read-only` | `true` | From 2.5.0. A scan that uses the service token is read-only: requests that could change data are blocked and the form error check is skipped. Set `false` for a test site where the scanner may submit forms. |
 | `github-token` | `${{ github.token }}` | Token used to post the comment. |
 | `timeout-minutes` | `15` | Per-attempt budget for one scan request (1 to 60). |
 | `retries` | `1` | Retries for transient backend or network failures (0 to 3). |

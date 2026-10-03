@@ -31,7 +31,7 @@ import { pullRequestNumber, readEvent, repository, upsertComment } from './githu
 // scanning attributes a finding to the release that produced it. Bump
 // with the CHANGELOG entry; test/e2e.mjs [27] fails when they diverge
 // (v2.1.1 shipped announcing itself as 2.1.0).
-const ACTION_VERSION = '2.4.4';
+const ACTION_VERSION = '2.5.0';
 const WCAG_LEVELS = ['A', 'AA', 'AAA'];
 const COMMENT_MODES = ['sticky', 'new', 'off'];
 
@@ -137,8 +137,12 @@ function readConfig() {
   const siteHeaders = cfAccessClientId
     ? { 'CF-Access-Client-Id': cfAccessClientId, 'CF-Access-Client-Secret': cfAccessClientSecret }
     : {};
+  // Read-only is the backend's default for a scan with site headers; only
+  // an explicit `false` is sent.
+  const readOnly = core.getBooleanInput('read-only', true);
 
   return {
+    readOnly,
     urls,
     wcagLevel,
     failOn,
@@ -146,6 +150,7 @@ function readConfig() {
     engines: core.getListInput('engines', { separator: /[\r\n,]+/ }),
     // Newlines only: a selector fragment may carry a comma.
     ignoreRules: core.getListInput('ignore-rules'),
+    ai: core.getBooleanInput('ai', true),
     commentMode,
     annotations: core.getBooleanInput('annotations', true),
     failOnUnrepresentative: core.getBooleanInput('fail-on-unrepresentative', true),
@@ -281,8 +286,10 @@ async function main() {
         gate: config.gate,
         engines: config.engines,
         ignoreRules: config.ignoreRules,
+        ai: config.ai,
         token: config.token,
         siteHeaders: config.siteHeaders,
+        readOnly: config.readOnly,
         oidcToken,
         timeoutMs: config.timeoutMs,
         retries: config.retries,

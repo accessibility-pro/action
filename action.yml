@@ -60,6 +60,17 @@ inputs:
       the list speeds up a scan at the cost of cross-engine corroboration.
     required: false
     default: ''
+  ai:
+    description: |
+      `false` keeps this scan away from every AI provider: no page content
+      is sent to a model, and the report says "AI off (scan request)".
+      Every finding still comes from the engines; only the plain-language
+      explanations are skipped. An account with AI switched off on its
+      Account page gets no AI whatever this says, and a scan sent with
+      the cf-access inputs (a signed-in scan) uses AI only if the account
+      opted in there.
+    required: false
+    default: 'true'
   comment:
     description: |
       Pull-request comment behaviour: `sticky` updates one comment in
@@ -115,6 +126,14 @@ inputs:
     description: 'Client Secret of the same Cloudflare Access service token.'
     required: false
     default: ''
+  read-only:
+    description: |
+      A scan that uses the service token above is read-only: requests
+      that could change data are blocked and the form error check is skipped.
+      Set to `false` for a test site where the scanner may submit forms.
+      Has no effect on a scan of a public site.
+    required: false
+    default: 'true'
   github-token:
     description: 'Token used to post the pull-request comment.'
     required: false

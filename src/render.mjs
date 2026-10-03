@@ -33,7 +33,9 @@ const WARNING_TITLES = {
   enrichment_timeout: 'Confidence scoring did not finish',
   enrichment_failed: 'Confidence scoring failed',
   claude_unavailable: 'AI rationale and Copy-as-PR were unavailable',
+  ai_off: 'AI was not used for this scan',
   llm_partial_fallback: 'Some rationales fell back to rule templates',
+  read_only_scan: 'Read-only scan behind the login',
   // Trustworthy kinds, so they never gate a build — but a run that
   // says "Scan notice" three times tells a reader nothing. These four
   // are the ones the report has always titled and the action did not.

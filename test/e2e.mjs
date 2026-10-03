@@ -854,6 +854,20 @@ console.log('\n[39] Half a service token fails before anything is sent');
 scenario = { response: (u) => scanResult(u) };
 await run({}, { inputs: { url: 'https://example.com' } });
 check('no service token sends no headers field', !('headers' in captured.scanBodies.at(-1).payload));
+check('read-only left to the backend default: no read_only field', !('read_only' in captured.scanBodies.at(-1).payload));
+
+console.log('\n[39b] read-only: false is the per-scan opt-out, and only false is sent');
+scenario = { response: (u) => scanResult(u) };
+await run({ 'INPUT_READ-ONLY': 'false' }, { inputs: { url: 'https://staging.example.com/' } });
+check('read_only false sent', captured.scanBodies.at(-1).payload.read_only === false, JSON.stringify(captured.scanBodies.at(-1).payload));
+await run({ 'INPUT_READ-ONLY': 'true' }, { inputs: { url: 'https://staging.example.com/' } });
+check('read-only true sends no field', !('read_only' in captured.scanBodies.at(-1).payload));
+{
+  const before = captured.scanBodies.length;
+  r = await run({ 'INPUT_READ-ONLY': 'sometimes' }, { inputs: { url: 'https://staging.example.com/' } });
+  check('a value that is not a boolean fails the step', r.code === 1 && r.stdout.includes("Input 'read-only' must be a boolean"), r.stdout.slice(-300));
+  check('and nothing is scanned', captured.scanBodies.length === before);
+}
 
 console.log('\n[40] Blocked by sign-in fails the step with the scanner\'s reason');
 scenario = { status: 422, response: (u) => scanResult(u) };
@@ -940,6 +954,32 @@ r = await run({ 'INPUT_ACCESSIBILITY-PRO-TOKEN': 'apt_e2etokene2etokene2etokene2
   check('exit 0: a stricter gate is not an unrepresentative scan', r.code === 0, r.stdout.slice(-400));
   check('not counted as a blocking warning', r.outputs['warnings-count'] === '0', JSON.stringify(r.outputs['warnings-count']));
 }
+
+console.log('\n[43] ai: false reaches the backend, and the AI-off notice is titled and never blocks');
+scenario = {
+  response: (u) =>
+    scanResult(u, {
+      passed: true,
+      warnings: [{
+        kind: 'ai_off',
+        severity: 'info',
+        message: 'AI off (scan request). No page content from this scan was sent to an AI provider.',
+      }],
+    }),
+};
+captured.comments = [];
+r = await run({ INPUT_AI: 'false' }, { inputs: { url: 'https://example.com/' } });
+{
+  check('ai: false sent to the backend', captured.scanBodies.at(-1).payload.ai === false, JSON.stringify(captured.scanBodies.at(-1).payload));
+  const body43 = captured.comments[0]?.body || '';
+  check('titled, not a generic notice', body43.includes('**AI was not used for this scan**') && !body43.includes('Scan notice'), body43.slice(0, 900));
+  check('names the setting', body43.includes('AI off (scan request)'), body43.slice(0, 900));
+  check('exit 0: AI off is not an unrepresentative scan', r.code === 0, r.stdout.slice(-400));
+  check('not counted as a blocking warning', r.outputs['warnings-count'] === '0', JSON.stringify(r.outputs['warnings-count']));
+}
+scenario = { response: (u) => scanResult(u) };
+await run({}, { inputs: { url: 'https://example.com/' } });
+check('no ai input sends no ai field', !('ai' in captured.scanBodies.at(-1).payload), JSON.stringify(captured.scanBodies.at(-1).payload));
 
 backend.close();
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
