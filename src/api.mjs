@@ -249,6 +249,21 @@ export async function runScan({
 
   if (res.status === 429) {
     const retryAfter = Number(res.headers['retry-after']) || 3600;
+    // The rate limiter's 429 carries only `error`. A `detail` is a 429 the
+    // route chose to send, such as the per-address cap on calls bucketed
+    // by the repository header, and only it names the right remedy.
+    let detail;
+    try {
+      detail = JSON.parse(res.body).detail;
+    } catch {
+      /* not JSON: the limiter's text below applies */
+    }
+    if (typeof detail === 'string' && detail.trim()) {
+      throw new HttpError(
+        `${detail.trim()} Retry in about ${Math.ceil(retryAfter / 60)} minutes.`,
+        { status: 429 }
+      );
+    }
     throw new HttpError(
       'Scan quota exhausted for this repository. The free tier allows 10 scans ' +
         `per day and 10 per hour; the quota resets in about ${Math.ceil(retryAfter / 60)} ` +

@@ -85,7 +85,7 @@ const backend = createServer((req, res) => {
       }
       if (scenario.status === 429) {
         res.writeHead(429, { 'retry-after': '3600', 'content-type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Rate limit exceeded', retry_after: 3600 }));
+        res.end(JSON.stringify(scenario.body ?? { error: 'Rate limit exceeded', retry_after: 3600 }));
         return;
       }
       if (scenario.delayMs) await new Promise((r) => setTimeout(r, scenario.delayMs));
@@ -425,6 +425,18 @@ r = await run({}, { inputs: { url: 'https://example.com' } });
 check('exit 1', r.code === 1);
 check('mentions quota + token remedy', r.stdout.includes('quota exhausted') && r.stdout.includes('accessibility-pro-token'), r.stdout.slice(-500));
 check('no stack trace leaked', !r.stdout.includes('at async'));
+
+console.log("\n[11a] The per-address cap fails with the backend's reason, not the repository quota text");
+scenario = {
+  status: 429,
+  body: { detail: 'Too many scans from this address today. Add an accessibility-pro-token, or use the OIDC recipe in the Action README, to get your own allowance.' },
+  response: (u) => scanResult(u),
+};
+r = await run({}, { inputs: { url: 'https://example.com' } });
+check('exit 1', r.code === 1);
+check("prints the backend's reason", r.stdout.includes('Too many scans from this address today') && r.stdout.includes('OIDC recipe'), r.stdout.slice(-500));
+check('does not blame the repository quota', !r.stdout.includes('quota exhausted for this repository'), r.stdout.slice(-500));
+check('says when to retry', r.stdout.includes('about 60 minutes'), r.stdout.slice(-500));
 
 console.log("\n[11b] A rejected token fails with the backend's reason");
 scenario = { status: 401, response: (u) => scanResult(u) };

@@ -4,6 +4,21 @@ All notable changes to the GitHub Action ship here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [SemVer](https://semver.org).
 
+## [2.5.1] · 2026-10-09
+
+### Fixed
+- **A scan refused by the per-address daily limit now says why.** A
+  workflow that sends neither `accessibility-pro-token` nor a GitHub
+  OIDC token (no `id-token: write` permission) is limited per network
+  address as well as per repository. When that limit was reached the
+  action printed "Scan quota exhausted for this repository", which was
+  wrong and left out the fix. It now prints the scanner's own reason,
+  "Too many scans from this address today", which says to add an
+  `accessibility-pro-token` or use OIDC (the `id-token: write`
+  permission in this README), followed by when to retry. When the
+  repository's own 10 scans a day or 10 an hour are used up, the
+  message is unchanged.
+
 ## [2.5.0] · 2026-10-03
 
 ### Added
